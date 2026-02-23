@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAuth } from "../context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import AskMeAnything from "@/components/AskMeAnything";
 
 const sidebarLinks = [
     { name: "Overview", icon: LayoutDashboard, path: "/dashboard" },
@@ -169,6 +170,7 @@ export default function DashboardLayout({ children }) {
                 <div className="p-8">
                     {children}
                 </div>
+                <AskMeAnything />
             </main>
         </div>
     );
