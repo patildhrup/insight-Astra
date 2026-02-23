@@ -1,36 +1,66 @@
-from fastapi import FastAPI, Depends
+import os
+from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.auth import get_current_user
 
-app = FastAPI(title="AI Fraud Shield Backend")
+load_dotenv()
 
-# CORS Configuration
+# Import routers
+from app.api.v1.chat import router as chat_router
+from app.api.v1.analytics import router as analytics_router
+
+# Import analytics engine for pre-loading
+from app.analytics import engine as analytics_engine
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load the UPI dataset once at startup so all requests share the same DataFrame."""
+    print("🚀 Loading UPI transactions dataset...")
+    try:
+        df = analytics_engine.load_data()
+        print(f"✅ Dataset loaded: {len(df):,} transactions, {len(df.columns)} columns")
+        print(f"   Columns: {', '.join(df.columns.tolist())}")
+    except Exception as e:
+        print(f"⚠️  Failed to load dataset: {e}")
+    yield
+    print("🛑 Shutting down...")
+
+
+app = FastAPI(
+    title="InsightX — UPI Analytics AI",
+    description="Conversational Analytics Engine for UPI Transactions",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# ── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, replace with your frontend URL
+    allow_origins=["*"],  # In production, restrict to frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── Routers ───────────────────────────────────────────────────────────────────
+app.include_router(chat_router)
+app.include_router(analytics_router)
+
+
+# ── Health Check ──────────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "AI Fraud Shield API is running"}
+    return {"message": "InsightX UPI Analytics API is running 🚀"}
 
-@app.get("/api/v1/user/profile")
-async def read_profile(current_user: dict = Depends(get_current_user)):
-    return {
-        "user_id": current_user["id"],
-        "email": current_user["email"],
-        "status": "active",
-        "role": "admin"
-    }
 
-@app.get("/api/v1/fraud/stats")
-async def get_fraud_stats(current_user: dict = Depends(get_current_user)):
-    # Mock data for demonstration
+@app.get("/health")
+async def health():
+    df = analytics_engine.get_df()
     return {
-        "accuracy": 99.8,
-        "threats_blocked": 1284,
-        "avg_risk_score": 12.5
+        "status": "healthy",
+        "dataset_loaded": df is not None,
+        "total_records": len(df) if df is not None else 0,
     }

@@ -1,0 +1,315 @@
+"""
+UPI Transactions Analytics Engine
+Loads the CSV once at startup and exposes typed query functions.
+"""
+
+import os
+import pandas as pd
+import numpy as np
+from functools import lru_cache
+from typing import Optional
+
+# ── Dataset path ──────────────────────────────────────────────────────────────
+_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "ml", "upi_transactions_2024.csv")
+
+# ── Global DataFrame (loaded once on import) ───────────────────────────────────
+_df: Optional[pd.DataFrame] = None
+
+
+def load_data() -> pd.DataFrame:
+    """Load and pre-process the CSV (called once at startup)."""
+    global _df
+    if _df is not None:
+        return _df
+
+    df = pd.read_csv(_csv_path())
+    # Normalise column names to lowercase with underscores
+    df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+    # Parse datetime columns if present
+    for col in ["timestamp", "date", "transaction_date", "datetime"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+            if "hour_of_day" not in df.columns:
+                df["hour_of_day"] = df[col].dt.hour
+            if "day_of_week" not in df.columns:
+                df["day_of_week"] = df[col].dt.day_name()
+            if "is_weekend" not in df.columns:
+                df["is_weekend"] = df[col].dt.dayofweek >= 5
+            break
+
+    # Ensure numeric types
+    if "amount" in df.columns:
+        df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+    if "fraud_flag" in df.columns:
+        df["fraud_flag"] = pd.to_numeric(df["fraud_flag"], errors="coerce").fillna(0)
+
+    _df = df
+    return _df
+
+
+def _csv_path() -> str:
+    return os.path.abspath(_CSV_PATH)
+
+
+def get_df() -> pd.DataFrame:
+    global _df
+    if _df is None:
+        load_data()
+    return _df
+
+
+def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
+    """Apply key=value filters from the query plan to the DataFrame."""
+    for col, val in (filters or {}).items():
+        if col == "peak_hours":
+            # Define peak hours as 7-10 AM and 7-11 PM
+            if "hour_of_day" in df.columns:
+                df = df[df["hour_of_day"].isin(list(range(7, 11)) + list(range(19, 24)))]
+        elif col == "weekend":
+            if "is_weekend" in df.columns:
+                df = df[df["is_weekend"] == bool(val)]
+        elif col in df.columns:
+            col_series = df[col]
+            if col_series.dtype == object:
+                df = df[col_series.str.lower() == str(val).lower()]
+            else:
+                df = df[col_series == val]
+    return df
+
+
+# ── Public query functions ─────────────────────────────────────────────────────
+
+def get_summary_stats() -> dict:
+    """Overall KPI summary for the dashboard."""
+    df = get_df()
+    total = len(df)
+    avg_amount = df["amount"].mean() if "amount" in df.columns else 0
+    fraud_count = int(df["fraud_flag"].sum()) if "fraud_flag" in df.columns else 0
+    fraud_rate = round(fraud_count / total * 100, 2) if total > 0 else 0
+
+    failed_count = 0
+    if "status" in df.columns:
+        failed_count = int((df["status"].str.upper() == "FAILED").sum())
+    failure_rate = round(failed_count / total * 100, 2) if total > 0 else 0
+
+    categories = df["merchant_category"].nunique() if "merchant_category" in df.columns else 0
+    states = df["state"].nunique() if "state" in df.columns else 0
+
+    return {
+        "total_transactions": total,
+        "avg_amount": round(avg_amount, 2),
+        "fraud_count": fraud_count,
+        "fraud_rate_pct": fraud_rate,
+        "failure_rate_pct": failure_rate,
+        "unique_categories": categories,
+        "unique_states": states,
+    }
+
+
+def query_aggregation(metric: str, column: str, filters: dict) -> dict:
+    """
+    Compute a single aggregation (avg/sum/count/rate) optionally filtered.
+    metric: 'avg' | 'sum' | 'count' | 'rate'
+    column: 'amount' | 'fraud_flag' | ...
+    filters: dict of column→value pairs
+    """
+    df = get_df()
+    filtered = _apply_filters(df.copy(), filters)
+    total_filtered = len(filtered)
+
+    if total_filtered == 0:
+        return {"result": None, "count": 0, "error": "No data matches the given filters."}
+
+    if metric == "avg" and column in filtered.columns:
+        result = round(filtered[column].mean(), 2)
+    elif metric == "sum" and column in filtered.columns:
+        result = round(filtered[column].sum(), 2)
+    elif metric == "count":
+        result = total_filtered
+    elif metric == "rate" and column in filtered.columns:
+        result = round(filtered[column].mean() * 100, 2)
+    else:
+        result = round(filtered[column].mean(), 2) if column in filtered.columns else None
+
+    # Benchmark against the full dataset for comparison
+    benchmark = round(df[column].mean(), 2) if column in df.columns else None
+    pct_diff = None
+    if benchmark and benchmark != 0 and result is not None:
+        pct_diff = round((result - benchmark) / benchmark * 100, 1)
+
+    return {
+        "result": result,
+        "benchmark": benchmark,
+        "pct_diff_from_overall": pct_diff,
+        "count": total_filtered,
+        "filters_applied": filters,
+    }
+
+
+def query_comparison(group_by: str, metric: str, column: str, filters: dict) -> dict:
+    """
+    GroupBy comparison, e.g. iOS vs Android average amount.
+    """
+    df = get_df()
+    filtered = _apply_filters(df.copy(), filters)
+
+    if group_by not in filtered.columns:
+        return {"error": f"Column '{group_by}' not found in dataset."}
+    if column not in filtered.columns:
+        return {"error": f"Column '{column}' not found in dataset."}
+
+    if metric in ("avg", "mean"):
+        grouped = filtered.groupby(group_by)[column].mean().round(2)
+    elif metric == "sum":
+        grouped = filtered.groupby(group_by)[column].sum().round(2)
+    elif metric in ("rate", "fraud_rate"):
+        grouped = (filtered.groupby(group_by)[column].mean() * 100).round(2)
+    else:
+        grouped = filtered.groupby(group_by)[column].mean().round(2)
+
+    counts = filtered.groupby(group_by).size()
+
+    result_rows = []
+    for grp in grouped.index:
+        result_rows.append({
+            "group": str(grp),
+            "value": grouped[grp],
+            "count": int(counts.get(grp, 0)),
+        })
+    result_rows.sort(key=lambda x: x["value"], reverse=True)
+
+    return {
+        "group_by": group_by,
+        "metric": metric,
+        "column": column,
+        "results": result_rows,
+        "total_records": len(filtered),
+    }
+
+
+def query_temporal(filters: dict) -> dict:
+    """
+    Peak hour / day-of-week analysis.
+    Returns top hours and top days for the filtered dataset.
+    """
+    df = get_df()
+    filtered = _apply_filters(df.copy(), filters)
+
+    result = {}
+
+    if "hour_of_day" in filtered.columns:
+        hourly = filtered.groupby("hour_of_day").agg(
+            count=("amount", "count"),
+            avg_amount=("amount", "mean")
+        ).round(2)
+        total_count = hourly["count"].sum()
+        hourly["pct"] = (hourly["count"] / total_count * 100).round(1)
+        top5 = hourly.nlargest(5, "count").reset_index()
+        result["peak_hours"] = top5.to_dict(orient="records")
+        # Find the single peak hour window
+        peak_hour = int(hourly["count"].idxmax())
+        result["peak_hour"] = peak_hour
+        result["peak_label"] = f"{peak_hour:02d}:00–{peak_hour+1:02d}:00"
+
+    if "day_of_week" in filtered.columns:
+        day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        daily = filtered.groupby("day_of_week").agg(
+            count=("amount", "count"),
+            avg_amount=("amount", "mean")
+        ).round(2)
+        daily = daily.reindex([d for d in day_order if d in daily.index])
+        result["daily_distribution"] = daily.reset_index().to_dict(orient="records")
+
+    result["total_filtered"] = len(filtered)
+    result["filters_applied"] = filters
+    return result
+
+
+def query_segmentation(segment_col: str, metric: str, column: str) -> dict:
+    """
+    Break down a metric by a segment column (e.g., age_group, state).
+    """
+    df = get_df()
+
+    if segment_col not in df.columns:
+        # Try common column name variants
+        candidates = [c for c in df.columns if segment_col.replace("_", "") in c.replace("_", "")]
+        if candidates:
+            segment_col = candidates[0]
+        else:
+            return {"error": f"Column '{segment_col}' not found. Available: {', '.join(df.columns.tolist()[:20])}"}
+
+    if column not in df.columns:
+        return {"error": f"Column '{column}' not found."}
+
+    if metric in ("rate", "fraud_rate"):
+        grouped = (df.groupby(segment_col)[column].mean() * 100).round(2)
+    elif metric == "avg":
+        grouped = df.groupby(segment_col)[column].mean().round(2)
+    elif metric == "sum":
+        grouped = df.groupby(segment_col)[column].sum().round(2)
+    else:
+        grouped = df.groupby(segment_col)[column].mean().round(2)
+
+    counts = df.groupby(segment_col).size()
+    rows = [{"segment": str(k), "value": float(v), "count": int(counts.get(k, 0))} for k, v in grouped.items()]
+    rows.sort(key=lambda x: x["value"], reverse=True)
+
+    return {
+        "segment_col": segment_col,
+        "metric": metric,
+        "column": column,
+        "results": rows[:20],  # cap at 20
+        "total_segments": len(rows),
+    }
+
+
+def query_risk(segment_col: Optional[str] = None) -> dict:
+    """
+    Fraud rate and failure rate, optionally broken down by a segment.
+    """
+    df = get_df()
+    result = {}
+
+    if segment_col:
+        fraud_result = query_segmentation(segment_col, "rate", "fraud_flag")
+        result["fraud_by_segment"] = fraud_result
+
+        if "status" in df.columns:
+            df_fail = df.copy()
+            df_fail["is_failed"] = (df_fail["status"].str.upper() == "FAILED").astype(int)
+            fail_result = query_segmentation.__wrapped__(segment_col, "rate", "is_failed") if hasattr(query_segmentation, "__wrapped__") else None
+            if fail_result is None:
+                fail_grouped = (df_fail.groupby(segment_col)["is_failed"].mean() * 100).round(2)
+                fail_counts = df_fail.groupby(segment_col).size()
+                fail_rows = [{"segment": str(k), "value": float(v), "count": int(fail_counts.get(k, 0))} for k, v in fail_grouped.items()]
+                fail_rows.sort(key=lambda x: x["value"], reverse=True)
+                result["failure_by_segment"] = {"results": fail_rows[:20]}
+    else:
+        total = len(df)
+        fraud_count = int(df["fraud_flag"].sum()) if "fraud_flag" in df.columns else 0
+        result["overall_fraud_rate"] = round(fraud_count / total * 100, 2)
+        result["fraud_count"] = fraud_count
+
+        if "status" in df.columns:
+            failed = (df["status"].str.upper() == "FAILED").sum()
+            result["overall_failure_rate"] = round(int(failed) / total * 100, 2)
+            result["failed_count"] = int(failed)
+
+    result["total_records"] = len(df)
+    return result
+
+
+def get_column_names() -> list[str]:
+    """Return available column names for the LLM prompt context."""
+    return get_df().columns.tolist()
+
+
+def get_unique_values(column: str, limit: int = 20) -> list:
+    """Return unique values for a given column (for context)."""
+    df = get_df()
+    if column not in df.columns:
+        return []
+    vals = df[column].dropna().unique()[:limit]
+    return [str(v) for v in vals]

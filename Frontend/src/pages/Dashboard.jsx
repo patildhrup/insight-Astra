@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
@@ -7,28 +7,58 @@ import {
     ShieldAlert,
     ShieldCheck,
     Activity,
-    UserCheck
+    IndianRupee,
+    Loader2,
+    AlertTriangle,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useAuth } from "../context/AuthContext";
+import { getAnalyticsSummary } from "@/services/api";
 
-const stats = [
-    { label: "Total Transactions", value: "1,284", icon: Activity, color: "text-blue-500", bg: "bg-blue-50" },
-    { label: "Fraud Alerts", value: "12", icon: ShieldAlert, color: "text-red-500", bg: "bg-red-50" },
-    { label: "Scanned Protected", value: "99.8%", icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50" },
-    { label: "Legit Users", value: "854", icon: UserCheck, color: "text-amber-500", bg: "bg-amber-50" },
+const SAMPLE_TRANSACTIONS = [
+    { id: "UPI-9012", user: "Priya Sharma", amount: "₹1,200", date: "Today, 11:45 AM", risk: "Low", status: "Approved" },
+    { id: "UPI-9011", user: "Rahul Mehta", amount: "₹45,000", date: "Today, 10:20 AM", risk: "High", status: "Flagged" },
+    { id: "UPI-9010", user: "Ananya Singh", amount: "₹350", date: "Today, 09:12 AM", risk: "Low", status: "Approved" },
+    { id: "UPI-9009", user: "Unknown", amount: "₹8,900", date: "Yesterday, 11:55 PM", risk: "Medium", status: "Review" },
+    { id: "UPI-9008", user: "Vikram Patel", amount: "₹2,100", date: "Yesterday, 08:30 PM", risk: "Low", status: "Approved" },
 ];
 
-const transactions = [
-    { id: "TX-9012", user: "Emma Vance", amount: "$120.00", date: "Today, 11:45 AM", risk: "Low", status: "Approved" },
-    { id: "TX-9011", user: "Michael Chen", amount: "$4,500.00", date: "Today, 10:20 AM", risk: "High", status: "Flagged" },
-    { id: "TX-9010", user: "Sarah Jenkins", amount: "$35.20", date: "Today, 09:12 AM", risk: "Low", status: "Approved" },
-    { id: "TX-9009", user: "Unknown (VPN)", amount: "$890.00", date: "Yesterday, 11:55 PM", risk: "Medium", status: "Review" },
-    { id: "TX-9008", user: "David Smith", amount: "$210.00", date: "Yesterday, 08:30 PM", risk: "Low", status: "Approved" },
-];
+function StatCard({ label, value, icon: Icon, color, bg, subtitle, loading }) {
+    return (
+        <Card className="border-none shadow-sm rounded-2xl bg-white p-2">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-medium text-gray-500">{label}</CardTitle>
+                <div className={`${bg} p-2 rounded-xl`}>
+                    <Icon className={`w-4 h-4 ${color}`} />
+                </div>
+            </CardHeader>
+            <CardContent>
+                {loading ? (
+                    <div className="flex items-center gap-2 h-8">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        <span className="text-sm text-gray-400">Loading...</span>
+                    </div>
+                ) : (
+                    <>
+                        <div className="text-2xl font-bold">{value}</div>
+                        {subtitle && (
+                            <div className="flex items-center text-xs text-emerald-500 font-medium mt-1">
+                                <ArrowUpRight className="w-3 h-3 mr-1" />
+                                {subtitle}
+                            </div>
+                        )}
+                    </>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function Dashboard() {
     const { user } = useAuth();
+    const [kpis, setKpis] = useState(null);
+    const [kpiLoading, setKpiLoading] = useState(true);
+    const [kpiError, setKpiError] = useState(null);
 
     useEffect(() => {
         const hasSeenConfetti = localStorage.getItem(`confetti_shown_${user?.id}`);
@@ -36,24 +66,71 @@ export default function Dashboard() {
             const duration = 5 * 1000;
             const animationEnd = Date.now() + duration;
             const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
-
             const randomInRange = (min, max) => Math.random() * (max - min) + min;
-
             const interval = setInterval(function () {
                 const timeLeft = animationEnd - Date.now();
-
-                if (timeLeft <= 0) {
-                    return clearInterval(interval);
-                }
-
+                if (timeLeft <= 0) return clearInterval(interval);
                 const particleCount = 50 * (timeLeft / duration);
                 confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
                 confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
             }, 250);
-
             localStorage.setItem(`confetti_shown_${user?.user_id || user?.id}`, "true");
         }
     }, [user]);
+
+    useEffect(() => {
+        getAnalyticsSummary()
+            .then((res) => {
+                setKpis(res.data);
+                setKpiLoading(false);
+            })
+            .catch((err) => {
+                setKpiError(err.message);
+                setKpiLoading(false);
+            });
+    }, []);
+
+    const stats = kpis
+        ? [
+            {
+                label: "Total Transactions",
+                value: kpis.total_transactions?.toLocaleString("en-IN"),
+                icon: Activity,
+                color: "text-blue-500",
+                bg: "bg-blue-50",
+                subtitle: `${kpis.unique_categories} categories`,
+            },
+            {
+                label: "Avg Transaction",
+                value: `₹${Number(kpis.avg_amount).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+                icon: IndianRupee,
+                color: "text-emerald-500",
+                bg: "bg-emerald-50",
+                subtitle: "per transaction",
+            },
+            {
+                label: "Fraud Rate",
+                value: `${kpis.fraud_rate_pct}%`,
+                icon: ShieldAlert,
+                color: "text-red-500",
+                bg: "bg-red-50",
+                subtitle: `${kpis.fraud_count?.toLocaleString("en-IN")} flagged`,
+            },
+            {
+                label: "Failure Rate",
+                value: `${kpis.failure_rate_pct}%`,
+                icon: ShieldCheck,
+                color: "text-amber-500",
+                bg: "bg-amber-50",
+                subtitle: `${kpis.unique_states} states covered`,
+            },
+        ]
+        : [
+            { label: "Total Transactions", value: "—", icon: Activity, color: "text-blue-500", bg: "bg-blue-50" },
+            { label: "Avg Transaction", value: "—", icon: IndianRupee, color: "text-emerald-500", bg: "bg-emerald-50" },
+            { label: "Fraud Rate", value: "—", icon: ShieldAlert, color: "text-red-500", bg: "bg-red-50" },
+            { label: "Failure Rate", value: "—", icon: ShieldCheck, color: "text-amber-500", bg: "bg-amber-50" },
+        ];
 
     return (
         <div className="space-y-8">
@@ -61,32 +138,27 @@ export default function Dashboard() {
                 <h1 className="text-2xl font-bold text-gray-900 text-left">
                     Welcome back, {user?.user_metadata?.first_name || 'Chief'}!
                 </h1>
-                <p className="text-gray-500 text-left">Monitor your system's security and activity in real-time.</p>
+                <p className="text-gray-500 text-left">
+                    Real-time UPI transaction insights powered by AI. {kpis && <span className="text-emerald-600 font-medium">✓ Live data loaded</span>}
+                </p>
             </div>
+
+            {kpiError && (
+                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>Could not load live KPIs — backend may be offline. Showing placeholder data. <em>Start the backend with <code>uvicorn main:app --reload</code></em></span>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
                 {stats.map((stat) => (
-                    <Card key={stat.label} className="border-none shadow-sm rounded-2xl bg-white p-2">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                            <CardTitle className="text-sm font-medium text-gray-500">{stat.label}</CardTitle>
-                            <div className={`${stat.bg} p-2 rounded-xl`}>
-                                <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{stat.value}</div>
-                            <div className="flex items-center text-xs text-emerald-500 font-medium mt-1">
-                                <ArrowUpRight className="w-3 h-3 mr-1" />
-                                +12% from last week
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <StatCard key={stat.label} {...stat} loading={kpiLoading} />
                 ))}
             </div>
 
             <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden text-left">
                 <CardHeader className="px-6 py-6 border-b border-gray-50">
-                    <CardTitle className="text-lg font-bold">Recent Transactions</CardTitle>
+                    <CardTitle className="text-lg font-bold">Recent UPI Transactions</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -101,7 +173,7 @@ export default function Dashboard() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {transactions.map((tx) => (
+                            {SAMPLE_TRANSACTIONS.map((tx) => (
                                 <TableRow key={tx.id} className="hover:bg-gray-50/30 transition-colors">
                                     <TableCell className="px-6 font-medium text-gray-900">{tx.id}</TableCell>
                                     <TableCell>{tx.user}</TableCell>
@@ -135,3 +207,4 @@ export default function Dashboard() {
         </div>
     );
 }
+
