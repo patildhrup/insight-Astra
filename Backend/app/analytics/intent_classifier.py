@@ -47,16 +47,24 @@ Your job is to parse the user's business question into a structured JSON QueryPl
 - temporal: peak hours, day-of-week analysis
 - segmentation: breakdown by age_group, state, merchant_category, etc.
 - risk: fraud rate, failure rate analysis
+- distribution: frequency breakdown of a numeric column (histogram)
+- correlation: relationship between two numeric columns (scatter)
+- multi_segmentation: breakdown by two dimensions (e.g., state AND category) for stacked/grouped charts
 - ambiguous: unclear question, needs clarification
+
+## Recommended Charts:
+bar, line, pie, donut, area, stacked_bar, grouped_bar, histogram, scatter, gauge, heatmap
 
 ## Output Format (JSON only, no markdown):
 {
-  "intent": "aggregation|comparison|temporal|segmentation|risk|ambiguous",
+  "intent": "aggregation|comparison|temporal|segmentation|risk|distribution|correlation|multi_segmentation|ambiguous",
   "metric": "avg|sum|count|rate",
   "column": "amount|fraud_flag",
   "filters": {"merchant_category": "Food"},
   "group_by": null,
   "segment_col": null,
+  "secondary_segment": null,
+  "recommended_chart": "bar|line|pie|...",
   "needs_clarification": false,
   "clarification_question": null,
   "context_used": false
@@ -64,34 +72,26 @@ Your job is to parse the user's business question into a structured JSON QueryPl
 
 ## Few-shot Examples:
 
-Q: "What is the average transaction amount for Food?"
-A: {"intent":"aggregation","metric":"avg","column":"amount","filters":{"merchant_category":"Food"},"group_by":null,"segment_col":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
+Q: "Amount distribution"
+A: {"intent":"distribution","metric":"count","column":"amount","filters":{},"group_by":null,"segment_col":null,"recommended_chart":"histogram","needs_clarification":false,"clarification_question":null,"context_used":false}
+
+Q: "Fraud by state and device type"
+A: {"intent":"multi_segmentation","metric":"rate","column":"fraud_flag","filters":{},"group_by":null,"segment_col":"state","secondary_segment":"device_type","recommended_chart":"stacked_bar","needs_clarification":false,"clarification_question":null,"context_used":false}
+
+Q: "Transaction amount vs hour of day"
+A: {"intent":"correlation","metric":"avg","column":"amount","filters":{},"group_by":null,"segment_col":"hour_of_day","recommended_chart":"scatter","needs_clarification":false,"clarification_question":null,"context_used":false}
 
 Q: "Compare Android vs iOS transaction amounts"
-A: {"intent":"comparison","metric":"avg","column":"amount","filters":{},"group_by":"device_type","segment_col":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
+A: {"intent":"comparison","metric":"avg","column":"amount","filters":{},"group_by":"device_type","segment_col":null,"recommended_chart":"bar","needs_clarification":false,"clarification_question":null,"context_used":false}
 
-Q: "What are peak hours for Entertainment?"
-A: {"intent":"temporal","metric":"count","column":"amount","filters":{"merchant_category":"Entertainment"},"group_by":null,"segment_col":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
-
-Q: "Which age group has the highest fraud rate?"
-A: {"intent":"segmentation","metric":"rate","column":"fraud_flag","filters":{},"group_by":null,"segment_col":"age_group","needs_clarification":false,"clarification_question":null,"context_used":false}
-
-Q: "What is the failure rate on weekends?"
-A: {"intent":"risk","metric":"rate","column":"fraud_flag","filters":{"weekend":true},"group_by":null,"segment_col":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
-
-Q: "Show me fraud rate"
-A: {"intent":"ambiguous","metric":"rate","column":"fraud_flag","filters":{},"group_by":null,"segment_col":null,"needs_clarification":true,"clarification_question":"For which segment would you like the fraud rate? (Overall, by state, device type, age group, or merchant category?)","context_used":false}
-
-Q: "And for Fuel?" (when context last_category=Grocery, last_metric=avg, last_column=amount)
-A: {"intent":"aggregation","metric":"avg","column":"amount","filters":{"merchant_category":"Fuel"},"group_by":null,"segment_col":null,"needs_clarification":false,"clarification_question":null,"context_used":true}
+Q: "Regional fraud distribution"
+A: {"intent":"segmentation","metric":"rate","column":"fraud_flag","filters":{},"group_by":null,"segment_col":"state","recommended_chart":"pie","needs_clarification":false,"clarification_question":null,"context_used":false}
 
 RULES:
 - Output ONLY valid JSON. No markdown, no explanation.
-- If the question is a follow-up (contains "and", "what about", "how about", "compare with", etc.), use context clues.
-- For fraud-related questions, always set column to "fraud_flag" and metric to "rate".
-- For failure/error rate, set column to "is_failed" and metric to "rate".
-- Map state names to match Indian state names exactly.
-- If the question mentions "5G vs WiFi" or similar network comparison, set group_by to "network_type".
+- If the question indicates comparing two categories over time, use 'multi_segmentation' with 'date' or 'hour' as one segment and 'recommended_chart':'line'.
+- For histograms, always use 'distribution' intent.
+- For relationships between two metrics or values, use 'correlation'.
 """
 
 

@@ -108,6 +108,20 @@ async def chat(request: ChatRequest):
             raw_result = analytics_engine.query_risk(seg)
             answer = explainability.format_risk_response(plan, raw_result)
 
+        elif intent == "distribution":
+            raw_result = analytics_engine.query_histogram(column)
+            answer = f"Here is the distribution of {column.replace('_', ' ')}."
+
+        elif intent == "correlation":
+            sec_col = plan.get("secondary_segment") or "hour_of_day"
+            raw_result = analytics_engine.query_correlation(column, sec_col)
+            answer = f"Analysis of the relationship between {column} and {sec_col}."
+
+        elif intent == "multi_segmentation":
+            dim2 = plan.get("secondary_segment") or "device_type"
+            raw_result = analytics_engine.query_multi_segmentation(segment_col or "state", dim2, metric, column)
+            answer = f"Breakdown of {metric} {column} by {segment_col} and {dim2}."
+
         else:
             # Fallback: general summary
             raw_result = analytics_engine.get_summary_stats()
@@ -126,8 +140,9 @@ async def chat(request: ChatRequest):
         intent=intent,
         data=raw_result,
         chart_data={
-            "type": raw_result.get("chart_type"),
+            "type": raw_result.get("chart_type") or plan.get("recommended_chart"),
             "data": raw_result.get("chart_data"),
+            "keys": raw_result.get("keys"),
             "title": f"{metric.title()} {column.replace('_', ' ')} by {group_by or segment_col or 'Segment'}"
         } if raw_result.get("chart_data") else None,
         needs_clarification=False,

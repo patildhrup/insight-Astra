@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
+    PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, ScatterChart, Scatter
 } from "recharts";
 import { useAnalytics } from "@/context/AnalyticsContext";
 import { getAnalyticsSummary } from "@/services/api";
@@ -51,7 +51,7 @@ export default function Analytics() {
     ];
 
     const renderChart = () => {
-        if (chartType === "bar") {
+        if (chartType === "bar" || chartType === "histogram") {
             return (
                 <ResponsiveContainer width="100%" height={350}>
                     <BarChart data={chartData}>
@@ -67,7 +67,32 @@ export default function Analytics() {
             );
         }
 
-        if (chartType === "pie") {
+        if (chartType === "stacked_bar" || chartType === "grouped_bar") {
+            const keys = lastAnalysis?.chart_data?.keys || [];
+            return (
+                <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} dy={10} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                        <Tooltip
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        />
+                        {keys.map((key, idx) => (
+                            <Bar
+                                key={key}
+                                dataKey={key}
+                                stackId={chartType === "stacked_bar" ? "a" : undefined}
+                                fill={COLORS[idx % COLORS.length]}
+                                radius={chartType === "stacked_bar" ? [0, 0, 0, 0] : [4, 4, 0, 0]}
+                            />
+                        ))}
+                    </BarChart>
+                </ResponsiveContainer>
+            );
+        }
+
+        if (chartType === "pie" || chartType === "donut") {
             return (
                 <ResponsiveContainer width="100%" height={350}>
                     <PieChart>
@@ -75,7 +100,7 @@ export default function Analytics() {
                             data={chartData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={80}
+                            innerRadius={chartType === "donut" ? 80 : 0}
                             outerRadius={120}
                             paddingAngle={5}
                             dataKey="value"
@@ -92,7 +117,7 @@ export default function Analytics() {
             );
         }
 
-        if (chartType === "line") {
+        if (chartType === "line" || chartType === "area") {
             return (
                 <ResponsiveContainer width="100%" height={350}>
                     <AreaChart data={chartData}>
@@ -110,6 +135,20 @@ export default function Analytics() {
                         />
                         <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
                     </AreaChart>
+                </ResponsiveContainer>
+            );
+        }
+
+        if (chartType === "scatter") {
+            return (
+                <ResponsiveContainer width="100%" height={350}>
+                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis type="number" dataKey="x" name="Amount" stroke="#94a3b8" fontSize={12} />
+                        <YAxis type="number" dataKey="y" name="Time" stroke="#94a3b8" fontSize={12} />
+                        <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                        <Scatter name="Transactions" data={chartData} fill="#6366f1" />
+                    </ScatterChart>
                 </ResponsiveContainer>
             );
         }

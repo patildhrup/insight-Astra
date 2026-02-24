@@ -344,6 +344,68 @@ def query_risk(segment_col: Optional[str] = None) -> dict:
     return result
 
 
+def query_histogram(column: str, bins: int = 10) -> dict:
+    """Computes frequency distribution for a numeric column."""
+    df = get_df()
+    if column not in df.columns:
+        return {"error": f"Column '{column}' not found"}
+    
+    counts, bin_edges = np.histogram(df[column].dropna(), bins=bins)
+    result_data = []
+    for i in range(len(counts)):
+        label = f"{bin_edges[i]:.0f}-{bin_edges[i+1]:.0f}"
+        result_data.append({"name": label, "value": int(counts[i])})
+        
+    return {
+        "column": column,
+        "chart_data": result_data,
+        "chart_type": "histogram"
+    }
+
+def query_correlation(col1: str, col2: str) -> dict:
+    """Returns X-Y pairs for relationship analysis."""
+    df = get_df()
+    if col1 not in df.columns or col2 not in df.columns:
+        return {"error": "One or more columns not found"}
+        
+    # Sample if dataset is too large, but for 1000 rows it's fine
+    sample = df[[col1, col2]].dropna().head(100)
+    result_data = [{"x": float(row[col1]), "y": float(row[col2])} for _, row in sample.iterrows()]
+    
+    return {
+        "col1": col1,
+        "col2": col2,
+        "chart_data": result_data,
+        "chart_type": "scatter"
+    }
+
+def query_multi_segmentation(dim1: str, dim2: str, metric: str, column: str) -> dict:
+    """Matrix breakdown for stacked/grouped charts."""
+    df = get_df()
+    if dim1 not in df.columns or dim2 not in df.columns:
+        return {"error": "Dimensions not found"}
+        
+    if metric == "count":
+        pivot = df.groupby([dim1, dim2]).size().unstack(fill_value=0)
+    else:
+        pivot = df.groupby([dim1, dim2])[column].mean().unstack(fill_value=0)
+        
+    result_data = []
+    # Recharts expects: [{name: 'GroupA', Series1: 10, Series2: 20}]
+    for idx, row in pivot.head(10).iterrows():
+        item = {"name": str(idx)}
+        for col in pivot.columns:
+            item[str(col)] = float(row[col])
+        result_data.append(item)
+        
+    return {
+        "dim1": dim1,
+        "dim2": dim2,
+        "keys": [str(c) for c in pivot.columns],
+        "chart_data": result_data,
+        "chart_type": "stacked_bar"
+    }
+
 def get_column_names() -> list[str]:
     """Return available column names for the LLM prompt context."""
     return get_df().columns.tolist()
