@@ -1,42 +1,77 @@
 """
-In-memory session context manager.
+In-memory and Redis session context manager.
 Each session_id gets its own context dict with conversation history and last filters.
 """
 
 import uuid
+import json
 from typing import Any
 from datetime import datetime
+from app.core.redis_client import redis_client
 
-# In-memory store: session_id -> context dict
+# In-memory fallback: session_id -> context dict
 _sessions: dict[str, dict] = {}
 
 MAX_HISTORY = 20  # Max messages to keep per session
+SESSION_TTL = 86400 # 24 hours
+
+
+def _get_redis(session_id: str) -> dict | None:
+    try:
+        data = redis_client.get(f"session:{session_id}")
+        if data:
+            return json.loads(data)
+    except Exception:
+        pass
+    return None
+
+
+def _set_redis(session_id: str, context: dict):
+    try:
+        redis_client.setex(
+            f"session:{session_id}",
+            SESSION_TTL,
+            json.dumps(context)
+        )
+    except Exception:
+        pass
 
 
 def get_or_create_session(session_id: str | None) -> tuple[str, dict]:
     """Return (session_id, context). Creates a new session if needed."""
-    if not session_id or session_id not in _sessions:
-        session_id = session_id or str(uuid.uuid4())
-        _sessions[session_id] = {
-            "conversation_history": [],  # [{role, content}]
-            "last_filters": {},          # e.g. {"merchant_category": "Food"}
-            "last_topic": None,          # e.g. "Grocery"
-            "last_category": None,
-            "last_group_by": None,
-            "last_metric": None,
-            "last_column": None,
-            "created_at": datetime.utcnow().isoformat(),
-            "last_updated": datetime.utcnow().isoformat(),
-        }
-    return session_id, _sessions[session_id]
+    if session_id:
+        # Try Redis first
+        ctx = _get_redis(session_id)
+        if ctx:
+            return session_id, ctx
+        
+        # Fallback to In-memory
+        if session_id in _sessions:
+            return session_id, _sessions[session_id]
+
+    # Create new session
+    session_id = session_id or str(uuid.uuid4())
+    new_ctx = {
+        "conversation_history": [],  # [{role, content}]
+        "last_filters": {},          # e.g. {"merchant_category": "Food"}
+        "last_topic": None,          # e.g. "Grocery"
+        "last_category": None,
+        "last_group_by": None,
+        "last_metric": None,
+        "last_column": None,
+        "created_at": datetime.utcnow().isoformat(),
+        "last_updated": datetime.utcnow().isoformat(),
+    }
+    
+    _sessions[session_id] = new_ctx
+    _set_redis(session_id, new_ctx)
+    
+    return session_id, new_ctx
 
 
 def update_context(session_id: str, query_plan: dict, user_message: str, assistant_response: str):
     """Persist the latest query plan and conversation turn into session context."""
-    if session_id not in _sessions:
-        get_or_create_session(session_id)
-
-    ctx = _sessions[session_id]
+    session_id, ctx = get_or_create_session(session_id)
 
     # Update last known filters / dimensions for follow-up resolution
     if query_plan.get("filters"):
@@ -60,19 +95,28 @@ def update_context(session_id: str, query_plan: dict, user_message: str, assista
         ctx["conversation_history"] = history[-(MAX_HISTORY * 2):]
 
     ctx["last_updated"] = datetime.utcnow().isoformat()
+    
+    # Save back
+    _sessions[session_id] = ctx
+    _set_redis(session_id, ctx)
 
 
 def get_conversation_history(session_id: str) -> list[dict]:
     """Return the conversation history for building the LLM prompt."""
-    ctx = _sessions.get(session_id, {})
+    _, ctx = get_or_create_session(session_id)
     return ctx.get("conversation_history", [])
 
 
 def get_last_context(session_id: str) -> dict:
     """Return the last known filters and dimensions."""
-    return _sessions.get(session_id, {})
+    _, ctx = get_or_create_session(session_id)
+    return ctx
 
 
 def clear_session(session_id: str):
-    """Remove a session from memory."""
+    """Remove a session from memory and Redis."""
     _sessions.pop(session_id, None)
+    try:
+        redis_client.delete(f"session:{session_id}")
+    except Exception:
+        pass

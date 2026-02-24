@@ -8,10 +8,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+import json
 from app.analytics import engine as analytics_engine
 from app.analytics import context_manager
 from app.analytics import intent_classifier
 from app.analytics import explainability
+from app.analytics.rag_engine import rag_engine
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
@@ -43,6 +45,20 @@ async def chat(request: ChatRequest):
 
     # 1. Get or create session context
     session_id, ctx = context_manager.get_or_create_session(request.session_id)
+    
+    # --- REDIS CACHE CHECK ---
+    cache_key = f"cache:{request.message.strip().lower()}"
+    try:
+        cached_res = redis_client.get(cache_key)
+        if cached_res:
+            cached_data = json.loads(cached_res)
+            # Ensure session_id matches the current one
+            cached_data["session_id"] = session_id
+            return ChatResponse(**cached_data)
+    except Exception:
+        pass
+    # -------------------------
+
     conversation_history = context_manager.get_conversation_history(session_id)
     last_ctx = context_manager.get_last_context(session_id)
 
@@ -117,10 +133,16 @@ async def chat(request: ChatRequest):
             raw_result = analytics_engine.query_correlation(column, sec_col)
             answer = f"Analysis of the relationship between {column} and {sec_col}."
 
-        elif intent == "multi_segmentation":
-            dim2 = plan.get("secondary_segment") or "device_type"
-            raw_result = analytics_engine.query_multi_segmentation(segment_col or "state", dim2, metric, column)
-            answer = f"Breakdown of {metric} {column} by {segment_col} and {dim2}."
+        elif intent == "rag":
+            context, docs = await rag_engine.query(request.message)
+            # We need to generate a final answer from this context.
+            # I'll add a helper in rag_engine or explainability.
+            # For now, let's use a new explainability function.
+            answer = await explainability.generate_rag_response(request.message, context)
+            raw_result = {
+                "context": context,
+                "sources": [doc.metadata.get("source") for doc in docs]
+            }
 
         else:
             # Fallback: general summary
@@ -134,7 +156,7 @@ async def chat(request: ChatRequest):
     # 5. Persist context
     context_manager.update_context(session_id, plan, request.message, answer)
 
-    return ChatResponse(
+    response = ChatResponse(
         answer=answer,
         session_id=session_id,
         intent=intent,
@@ -147,6 +169,15 @@ async def chat(request: ChatRequest):
         } if raw_result.get("chart_data") else None,
         needs_clarification=False,
     )
+
+    # --- REDIS CACHE SET ---
+    try:
+        redis_client.setex(cache_key, 3600, response.model_dump_json())
+    except Exception:
+        pass
+    # -----------------------
+
+    return response
 
 
 def _format_summary(stats: dict) -> str:

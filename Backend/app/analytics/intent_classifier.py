@@ -12,16 +12,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-# Primary model + fallback list
-MODELS = [
-    "google/gemini-2.0-flash-lite-001",
-    "google/gemini-flash-1.5-8b",
-    "meta-llama/llama-3.1-8b-instruct:free",
-    "mistralai/mistral-7b-instruct:free",
-]
+from app.core.llm import call_llm
 
 # ── System Prompt ──────────────────────────────────────────────────────────────
 
@@ -50,6 +41,7 @@ Your job is to parse the user's business question into a structured JSON QueryPl
 - distribution: frequency breakdown of a numeric column (histogram)
 - correlation: relationship between two numeric columns (scatter)
 - multi_segmentation: breakdown by two dimensions (e.g., state AND category) for stacked/grouped charts
+- rag: general or complex questions about transaction patterns, specific queries that don't fit analytics, or conversational questions about the data.
 - ambiguous: unclear question, needs clarification
 
 ## Recommended Charts:
@@ -57,7 +49,7 @@ bar, line, pie, donut, area, stacked_bar, grouped_bar, histogram, scatter, gauge
 
 ## Output Format (JSON only, no markdown):
 {
-  "intent": "aggregation|comparison|temporal|segmentation|risk|distribution|correlation|multi_segmentation|ambiguous",
+  "intent": "aggregation|comparison|temporal|segmentation|risk|distribution|correlation|multi_segmentation|rag|ambiguous",
   "metric": "avg|sum|count|rate",
   "column": "amount|fraud_flag",
   "filters": {"merchant_category": "Food"},
@@ -84,11 +76,15 @@ A: {"intent":"correlation","metric":"avg","column":"amount","filters":{},"group_
 Q: "Compare Android vs iOS transaction amounts"
 A: {"intent":"comparison","metric":"avg","column":"amount","filters":{},"group_by":"device_type","segment_col":null,"recommended_chart":"bar","needs_clarification":false,"clarification_question":null,"context_used":false}
 
-Q: "Regional fraud distribution"
-A: {"intent":"segmentation","metric":"rate","column":"fraud_flag","filters":{},"group_by":null,"segment_col":"state","recommended_chart":"pie","needs_clarification":false,"clarification_question":null,"context_used":false}
+Q: "What are the common traits of transactions over 50k?"
+A: {"intent":"rag","metric":null,"column":"amount","filters":{},"group_by":null,"segment_col":null,"recommended_chart":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
+
+Q: "Tell me about transactional behavior in Mumbai."
+A: {"intent":"rag","metric":null,"column":null,"filters":{"state":"Maharashtra"},"group_by":null,"segment_col":null,"recommended_chart":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
 
 RULES:
 - Output ONLY valid JSON. No markdown, no explanation.
+- Use 'rag' for general questions OR questions that require qualitative insight from the data.
 - If the question indicates comparing two categories over time, use 'multi_segmentation' with 'date' or 'hour' as one segment and 'recommended_chart':'line'.
 - For histograms, always use 'distribution' intent.
 - For relationships between two metrics or values, use 'correlation'.
@@ -125,40 +121,17 @@ async def classify_intent(
         messages.append(turn)
     messages.append({"role": "user", "content": user_message + context_hint})
 
-    last_error = None
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for model in MODELS:
-            try:
-                response = await client.post(
-                    OPENROUTER_BASE_URL,
-                    headers={
-                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://insightx.astra",
-                        "X-Title": "InsightX UPI Analytics",
-                    },
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "temperature": 0.1,
-                        "max_tokens": 512,
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
-                content = data["choices"][0]["message"]["content"].strip()
+    try:
+        content = await call_llm(messages)
+        # Strip markdown code fences if present
+        content = re.sub(r"^```(?:json)?\s*", "", content)
+        content = re.sub(r"\s*```$", "", content)
 
-                # Strip markdown code fences if present
-                content = re.sub(r"^```(?:json)?\s*", "", content)
-                content = re.sub(r"\s*```$", "", content)
+        plan = json.loads(content)
+        return plan
 
-                plan = json.loads(content)
-                plan["_model_used"] = model
-                return plan
-
-            except Exception as e:
-                last_error = f"[{model}] {type(e).__name__}: {e}"
-                continue  # try next model
+    except Exception as e:
+        last_error = str(e)
 
     # All models failed — graceful fallback
     return {

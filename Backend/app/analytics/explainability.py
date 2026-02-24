@@ -3,6 +3,7 @@ Explainability Engine — converts raw analytics results into rich natural-langu
 """
 
 from typing import Any
+from app.core.llm import call_llm
 
 
 def _fmt_inr(val: float | None) -> str:
@@ -214,6 +215,31 @@ def format_risk_response(plan: dict, result: dict) -> str:
             lines.append(f"  • **{row['segment']}** → {_fmt_pct(row['value'])} ({row['count']:,} transactions)")
 
     return "\n".join(lines) if lines else "No risk data available."
+
+
+async def generate_rag_response(question: str, context: str) -> str:
+    """Uses LLM to generate a natural language answer based on retrieved CSV context."""
+    system_prompt = """You are an AI Analyst for InsightX, a UPI fraud detection system.
+Your goal is to answer the user's question based ONLY on the provided transaction data fragments (CSV rows).
+
+## Context / Transaction Data:
+{context}
+
+## Instructions:
+- Provide a clear, professional, and data-backed answer.
+- If the data doesn't contain the answer, say you don't have enough specific information but offer a general insight based on what is available.
+- Mention specific patterns, amounts, or merchant categories if they appear in the context.
+- Keep the tone helpful and analytical.
+"""
+    messages = [
+        {"role": "system", "content": system_prompt.format(context=context)},
+        {"role": "user", "content": question}
+    ]
+    
+    try:
+        return await call_llm(messages, temperature=0.3, max_tokens=700)
+    except Exception as e:
+        return f"I found some relevant data, but I'm having trouble summarizing it right now. \n\n**Raw Context:**\n{context[:500]}..."
 
 
 def format_clarification_response(clarification_question: str) -> str:
