@@ -26,6 +26,15 @@ def load_data() -> pd.DataFrame:
     # Normalise column names to lowercase with underscores
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
 
+    # Explicitly map common CSV variants to expected logic names
+    mapping = {
+        "amount_(inr)": "amount",
+        "transaction_status": "status",
+        "sender_age_group": "age_group",
+        "sender_state": "state",
+    }
+    df = df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
+
     # Parse datetime columns if present
     for col in ["timestamp", "date", "transaction_date", "datetime"]:
         if col in df.columns:
@@ -279,13 +288,12 @@ def query_risk(segment_col: Optional[str] = None) -> dict:
         if "status" in df.columns:
             df_fail = df.copy()
             df_fail["is_failed"] = (df_fail["status"].str.upper() == "FAILED").astype(int)
-            fail_result = query_segmentation.__wrapped__(segment_col, "rate", "is_failed") if hasattr(query_segmentation, "__wrapped__") else None
-            if fail_result is None:
-                fail_grouped = (df_fail.groupby(segment_col)["is_failed"].mean() * 100).round(2)
-                fail_counts = df_fail.groupby(segment_col).size()
-                fail_rows = [{"segment": str(k), "value": float(v), "count": int(fail_counts.get(k, 0))} for k, v in fail_grouped.items()]
-                fail_rows.sort(key=lambda x: x["value"], reverse=True)
-                result["failure_by_segment"] = {"results": fail_rows[:20]}
+            # Roll our own tiny segmentation for is_failed to avoid recursion or complex wrapper extraction
+            fail_grouped = (df_fail.groupby(segment_col)["is_failed"].mean() * 100).round(2)
+            fail_counts = df_fail.groupby(segment_col).size()
+            fail_rows = [{"segment": str(k), "value": float(v), "count": int(fail_counts.get(k, 0))} for k, v in fail_grouped.items()]
+            fail_rows.sort(key=lambda x: x["value"], reverse=True)
+            result["failure_by_segment"] = {"results": fail_rows[:20]}
     else:
         total = len(df)
         fraud_count = int(df["fraud_flag"].sum()) if "fraud_flag" in df.columns else 0

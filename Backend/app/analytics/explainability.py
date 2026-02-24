@@ -67,6 +67,10 @@ def format_comparison_response(plan: dict, result: dict) -> str:
     metric = result.get("metric", "avg")
     rows = result.get("results", [])
     total = result.get("total_records", 0)
+    error = result.get("error")
+
+    if error:
+        return f"⚠️ **Error in Comparison:** {error}"
 
     if not rows:
         return "❌ No comparison data available for the given query."
