@@ -105,6 +105,25 @@ def get_summary_stats() -> dict:
     categories = df["merchant_category"].nunique() if "merchant_category" in df.columns else 0
     states = df["state"].nunique() if "state" in df.columns else 0
 
+    # Get recent transactions
+    recent_transactions = []
+    time_col = next((c for c in ["timestamp", "date", "transaction_date", "datetime"] if c in df.columns), None)
+    
+    if time_col:
+        recent_df = df.sort_values(by=time_col, ascending=False).head(10)
+        # Handle NaN values for JSON serialization
+        recent_df = recent_df.replace({np.nan: None})
+        
+        for _, row in recent_df.iterrows():
+            recent_transactions.append({
+                "id": str(row.get("transaction_id", "N/A")),
+                "user": "User " + str(row.get("sender_id", "Unknown")),
+                "amount": float(row.get("amount", 0)),
+                "date": row[time_col].strftime("%Y-%m-%d %H:%M") if hasattr(row[time_col], "strftime") else str(row[time_col]),
+                "risk": "High" if row.get("fraud_flag") == 1 else "Low",
+                "status": str(row.get("status", "SUCCESS")).capitalize()
+            })
+
     return {
         "total_transactions": total,
         "avg_amount": round(avg_amount, 2),
@@ -113,6 +132,7 @@ def get_summary_stats() -> dict:
         "failure_rate_pct": failure_rate,
         "unique_categories": categories,
         "unique_states": states,
+        "recent_transactions": recent_transactions
     }
 
 
@@ -194,6 +214,10 @@ def query_comparison(group_by: str, metric: str, column: str, filters: dict) -> 
         "column": column,
         "results": result_rows,
         "total_records": len(filtered),
+        "chart_data": [
+            {"name": r["group"], "value": r["value"]} for r in result_rows[:15]
+        ],
+        "chart_type": "bar"
     }
 
 
@@ -232,6 +256,13 @@ def query_temporal(filters: dict) -> dict:
 
     result["total_filtered"] = len(filtered)
     result["filters_applied"] = filters
+    
+    peak_hour_data = result.get("peak_hours", [])
+    result["chart_data"] = [
+        {"name": f"{int(r['hour_of_day']):02d}:00", "value": r["count"]} for r in peak_hour_data
+    ]
+    result["chart_type"] = "line"
+    
     return result
 
 
@@ -271,6 +302,10 @@ def query_segmentation(segment_col: str, metric: str, column: str) -> dict:
         "column": column,
         "results": rows[:20],  # cap at 20
         "total_segments": len(rows),
+        "chart_data": [
+            {"name": r["segment"], "value": r["value"]} for r in rows[:15]
+        ],
+        "chart_type": "pie" if metric in ("rate", "fraud_rate") else "bar"
     }
 
 

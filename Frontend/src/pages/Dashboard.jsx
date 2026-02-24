@@ -173,11 +173,15 @@ export default function Dashboard() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {SAMPLE_TRANSACTIONS.map((tx) => (
+                            {(kpis?.recent_transactions || SAMPLE_TRANSACTIONS).map((tx) => (
                                 <TableRow key={tx.id} className="hover:bg-gray-50/30 transition-colors">
                                     <TableCell className="px-6 font-medium text-gray-900">{tx.id}</TableCell>
                                     <TableCell>{tx.user}</TableCell>
-                                    <TableCell>{tx.amount}</TableCell>
+                                    <TableCell>
+                                        {typeof tx.amount === 'number'
+                                            ? `₹${tx.amount.toLocaleString("en-IN")}`
+                                            : tx.amount}
+                                    </TableCell>
                                     <TableCell className="text-gray-500">{tx.date}</TableCell>
                                     <TableCell>
                                         <Badge
@@ -191,7 +195,7 @@ export default function Dashboard() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="px-6 text-right">
-                                        <span className={`text-sm font-semibold ${tx.status === 'Flagged' ? 'text-red-500' :
+                                        <span className={`text-sm font-semibold ${tx.status === 'Flagged' || tx.status === 'Failed' ? 'text-red-500' :
                                             tx.status === 'Review' ? 'text-amber-500' :
                                                 'text-emerald-500'
                                             }`}>

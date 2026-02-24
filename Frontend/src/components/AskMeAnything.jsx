@@ -165,7 +165,12 @@ function ThinkingBubble() {
     );
 }
 
+import { useNavigate } from "react-router-dom";
+import { useAnalytics } from "@/context/AnalyticsContext";
+
 export default function AskMeAnything() {
+    const navigate = useNavigate();
+    const { updateAnalysis } = useAnalytics();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
@@ -214,6 +219,18 @@ export default function AskMeAnything() {
 
             if (!sessionId && result.session_id) {
                 setSessionId(result.session_id);
+            }
+
+            // Update Analytics Dashboard State
+            if (result.chart_data) {
+                updateAnalysis({
+                    query,
+                    answer: result.answer,
+                    chart_data: result.chart_data
+                });
+
+                // If we aren't already on the analytics page, maybe navigate?
+                // For now, just ensuring the state is updated is enough.
             }
 
             const aiMsg = {

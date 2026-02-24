@@ -21,6 +21,8 @@ function ScrollToTop() {
 }
 
 import { AuthProvider } from "./context/AuthContext";
+import { AnalyticsProvider } from "./context/AnalyticsContext";
+import Analytics from "./pages/Analytics";
 
 function App() {
     useEffect(() => {
@@ -44,44 +46,46 @@ function App() {
 
     return (
         <AuthProvider>
-            <Router>
-                <ScrollToTop />
-                <Routes>
-                    <Route path="/" element={<LandingPage />} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/signup" element={<SignupPage />} />
-                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
-                    <Route
-                        path="/dashboard/*"
-                        element={
-                            <DashboardLayout>
-                                <Routes>
-                                    <Route index element={<Dashboard />} />
-                                    <Route path="transactions" element={<div>Transactions Page Coming Soon</div>} />
-                                    <Route path="alerts" element={<div>Alerts Page Coming Soon</div>} />
-                                    <Route path="analytics" element={<div>Analytics Page Coming Soon</div>} />
-                                    <Route path="settings" element={<div>Settings Page Coming Soon</div>} />
-                                    <Route path="*" element={<NotFoundPage />} />
-                                </Routes>
-                            </DashboardLayout>
-                        }
+            <AnalyticsProvider>
+                <Router>
+                    <ScrollToTop />
+                    <Routes>
+                        <Route path="/" element={<LandingPage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/signup" element={<SignupPage />} />
+                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
+                        <Route
+                            path="/dashboard/*"
+                            element={
+                                <DashboardLayout>
+                                    <Routes>
+                                        <Route index element={<Dashboard />} />
+                                        <Route path="transactions" element={<div>Transactions Page Coming Soon</div>} />
+                                        <Route path="alerts" element={<div>Alerts Page Coming Soon</div>} />
+                                        <Route path="analytics" element={<Analytics />} />
+                                        <Route path="settings" element={<div>Settings Page Coming Soon</div>} />
+                                        <Route path="*" element={<NotFoundPage />} />
+                                    </Routes>
+                                </DashboardLayout>
+                            }
+                        />
+                        <Route path="*" element={<NotFoundPage />} />
+                    </Routes>
+                    <ToastContainer
+                        position="top-right"
+                        autoClose={5000}
+                        hideProgressBar={false}
+                        newestOnTop
+                        closeOnClick
+                        rtl={false}
+                        pauseOnFocusLoss
+                        draggable
+                        pauseOnHover
+                        theme="light"
                     />
-                    <Route path="*" element={<NotFoundPage />} />
-                </Routes>
-                <ToastContainer
-                    position="top-right"
-                    autoClose={5000}
-                    hideProgressBar={false}
-                    newestOnTop
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                    theme="light"
-                />
-            </Router>
+                </Router>
+            </AnalyticsProvider>
         </AuthProvider>
     );
 }

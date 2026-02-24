@@ -26,6 +26,7 @@ class ChatResponse(BaseModel):
     session_id: str
     intent: Optional[str] = None
     data: Optional[dict] = None
+    chart_data: Optional[dict] = None
     needs_clarification: bool = False
     clarification_question: Optional[str] = None
 
@@ -44,6 +45,12 @@ async def chat(request: ChatRequest):
     session_id, ctx = context_manager.get_or_create_session(request.session_id)
     conversation_history = context_manager.get_conversation_history(session_id)
     last_ctx = context_manager.get_last_context(session_id)
+
+    # Defaults for chart title construction
+    metric = "count"
+    column = "transactions"
+    group_by = None
+    segment_col = None
 
     # 2. Classify intent & build query plan
     plan = await intent_classifier.classify_intent(
@@ -118,6 +125,11 @@ async def chat(request: ChatRequest):
         session_id=session_id,
         intent=intent,
         data=raw_result,
+        chart_data={
+            "type": raw_result.get("chart_type"),
+            "data": raw_result.get("chart_data"),
+            "title": f"{metric.title()} {column.replace('_', ' ')} by {group_by or segment_col or 'Segment'}"
+        } if raw_result.get("chart_data") else None,
         needs_clarification=False,
     )
 
