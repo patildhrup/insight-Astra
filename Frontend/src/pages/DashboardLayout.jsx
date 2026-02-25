@@ -10,6 +10,7 @@ import {
     Shield,
     Bell,
     Search,
+    FileText,
     User as UserIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const sidebarLinks = [
     { name: "Transactions", icon: ArrowLeftRight, path: "/dashboard/transactions" },
     { name: "Fraud Alerts", icon: AlertCircle, path: "/dashboard/alerts" },
     { name: "Analytics", icon: BarChart3, path: "/dashboard/analytics" },
+    { name: "AI Reports", icon: FileText, path: "/dashboard/auto-report" },
     { name: "Settings", icon: Settings, path: "/dashboard/settings" },
 ];
 

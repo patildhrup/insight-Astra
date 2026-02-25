@@ -242,6 +242,36 @@ Your goal is to answer the user's question based ONLY on the provided transactio
         return f"I found some relevant data, but I'm having trouble summarizing it right now. \n\n**Raw Context:**\n{context[:500]}..."
 
 
+async def generate_dashboard_narrative(question: str, data: dict) -> str:
+    """Uses LLM to provide a narrative executive summary of a generated dashboard."""
+    kpis = data.get("kpis", {})
+    breakdowns = data.get("breakdowns", {})
+    
+    context = f"""
+    - Timeframe: {data.get('summary', {}).get('timeframe')}
+    - Volume: {kpis.get('volume')} transactions
+    - Total Amount: INR {kpis.get('total_amount'):,.2f}
+    - Fraud Rate: {kpis.get('fraud_rate'):.2f}%
+    - Success Rate: {kpis.get('success_rate'):.2f}%
+    - Top Merchant Category: {breakdowns.get('merchant', [{}])[0].get('label', 'N/A')}
+    """
+
+    system_prompt = """You are a Senior Financial Data Analyst. 
+    Provide a concise (2-3 paragraph) executive summary of the following transaction dashboard data. 
+    Highlight key trends, risk levels, and one actionable insight. 
+    Use a professional and confidence-inspiring tone. Use markdown bolding for key figures."""
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"User Prompt: {question}\n\nData Summary: {context}"}
+    ]
+    
+    try:
+        return await call_llm(messages, temperature=0.5, max_tokens=500)
+    except Exception:
+        return f"This dashboard summarizes {kpis.get('volume')} transactions with a total value of INR {kpis.get('total_amount'):,.2f}. The fraud rate is currently at {kpis.get('fraud_rate'):.2f}%."
+
+
 def format_clarification_response(clarification_question: str) -> str:
     return f"🤔 {clarification_question}"
 

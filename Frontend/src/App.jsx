@@ -23,6 +23,7 @@ function ScrollToTop() {
 import { AuthProvider } from "./context/AuthContext";
 import { AnalyticsProvider } from "./context/AnalyticsContext";
 import Analytics from "./pages/Analytics";
+import AutoReport from "./pages/AutoReport";
 
 function App() {
     useEffect(() => {
@@ -64,6 +65,7 @@ function App() {
                                         <Route path="transactions" element={<div>Transactions Page Coming Soon</div>} />
                                         <Route path="alerts" element={<div>Alerts Page Coming Soon</div>} />
                                         <Route path="analytics" element={<Analytics />} />
+                                        <Route path="auto-report" element={<AutoReport />} />
                                         <Route path="settings" element={<div>Settings Page Coming Soon</div>} />
                                         <Route path="*" element={<NotFoundPage />} />
                                     </Routes>

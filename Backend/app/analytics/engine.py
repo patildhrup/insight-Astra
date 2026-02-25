@@ -68,6 +68,36 @@ def get_df() -> pd.DataFrame:
     return _df
 
 
+def _apply_date_filter(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+    """Filter DataFrame by a relative timeframe (e.g., 'last month', 'yesterday')."""
+    time_col = next((c for c in ["timestamp", "date", "transaction_date", "datetime"] if c in df.columns), None)
+    if not time_col or not timeframe:
+        return df
+
+    # Use the latest date in the dataset as 'now' to handle historical datasets
+    now = df[time_col].max()
+    if pd.isna(now):
+        now = pd.Timestamp.now()
+    
+    timeframe = timeframe.lower()
+
+    try:
+        if "yesterday" in timeframe:
+            # Last 24h from the end of the dataset
+            start = (now - pd.Timedelta(days=1))
+            df = df[(df[time_col] >= start) & (df[time_col] <= now)]
+        elif "last week" in timeframe:
+            df = df[df[time_col] >= (now - pd.Timedelta(days=7))]
+        elif "last month" in timeframe:
+            df = df[df[time_col] >= (now - pd.Timedelta(days=30))]
+        elif "last 24 hours" in timeframe or "today" in timeframe:
+            df = df[df[time_col] >= (now - pd.Timedelta(hours=24))]
+    except Exception:
+        pass # Fallback to unfiltered if date parsing fails
+    
+    return df
+
+
 def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     """Apply key=value filters from the query plan to the DataFrame."""
     for col, val in (filters or {}).items():
@@ -78,6 +108,8 @@ def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         elif col == "weekend":
             if "is_weekend" in df.columns:
                 df = df[df["is_weekend"] == bool(val)]
+        elif col == "timeframe":
+            df = _apply_date_filter(df, str(val))
         elif col in df.columns:
             col_series = df[col]
             if col_series.dtype == object:
@@ -148,21 +180,34 @@ def query_aggregation(metric: str, column: str, filters: dict) -> dict:
     total_filtered = len(filtered)
 
     if total_filtered == 0:
-        return {"result": None, "count": 0, "error": "No data matches the given filters."}
+        return {
+            "result": None, 
+            "count": 0, 
+            "error": "No data matches the given filters.",
+            "filters_applied": filters
+        }
 
-    if metric == "avg" and column in filtered.columns:
-        result = round(filtered[column].mean(), 2)
-    elif metric == "sum" and column in filtered.columns:
-        result = round(filtered[column].sum(), 2)
-    elif metric == "count":
+    if metric == "count":
         result = total_filtered
-    elif metric == "rate" and column in filtered.columns:
+    elif column not in filtered.columns:
+        result = total_filtered # Fallback to count if column is missing
+    elif metric == "avg" and pd.api.types.is_numeric_dtype(filtered[column]):
+        result = round(filtered[column].mean(), 2)
+    elif metric == "sum" and pd.api.types.is_numeric_dtype(filtered[column]):
+        result = round(filtered[column].sum(), 2)
+    elif metric == "rate" and pd.api.types.is_numeric_dtype(filtered[column]):
         result = round(filtered[column].mean() * 100, 2)
     else:
-        result = round(filtered[column].mean(), 2) if column in filtered.columns else None
+        # If mean is requested on a string column, return count as a fallback or None
+        if metric in ("avg", "mean", "sum") and not pd.api.types.is_numeric_dtype(filtered[column]):
+             result = total_filtered # Return count instead of error
+        else:
+            result = total_filtered
 
     # Benchmark against the full dataset for comparison
-    benchmark = round(df[column].mean(), 2) if column in df.columns else None
+    benchmark = None
+    if column in df.columns and pd.api.types.is_numeric_dtype(df[column]):
+        benchmark = round(df[column].mean(), 2)
     pct_diff = None
     if benchmark and benchmark != 0 and result is not None:
         pct_diff = round((result - benchmark) / benchmark * 100, 1)
@@ -188,14 +233,15 @@ def query_comparison(group_by: str, metric: str, column: str, filters: dict) -> 
     if column not in filtered.columns:
         return {"error": f"Column '{column}' not found in dataset."}
 
-    if metric in ("avg", "mean"):
+    if metric in ("avg", "mean") and pd.api.types.is_numeric_dtype(filtered[column]):
         grouped = filtered.groupby(group_by)[column].mean().round(2)
-    elif metric == "sum":
+    elif metric == "sum" and pd.api.types.is_numeric_dtype(filtered[column]):
         grouped = filtered.groupby(group_by)[column].sum().round(2)
-    elif metric in ("rate", "fraud_rate"):
+    elif metric in ("rate", "fraud_rate") and pd.api.types.is_numeric_dtype(filtered[column]):
         grouped = (filtered.groupby(group_by)[column].mean() * 100).round(2)
     else:
-        grouped = filtered.groupby(group_by)[column].mean().round(2)
+        # Fallback to count if column is non-numeric
+        grouped = filtered.groupby(group_by).size()
 
     counts = filtered.groupby(group_by).size()
 
@@ -418,3 +464,61 @@ def get_unique_values(column: str, limit: int = 20) -> list:
         return []
     vals = df[column].dropna().unique()[:limit]
     return [str(v) for v in vals]
+
+
+def generate_dashboard_data(metric: str = "avg", column: str = "amount", filters: dict = None) -> dict:
+    """
+    Generates a full dashboard structure including KPIs, trends, and breakdowns.
+    """
+    df = get_df()
+    df_filtered = _apply_date_filter(df, filters.get("timeframe")) if filters else df
+    df_filtered = _apply_filters(df_filtered, filters)
+    
+    total_records = len(df_filtered)
+    if total_records == 0:
+        return {"error": "No data matches filters."}
+
+    # 1. KPIs
+    kpis = {
+        "volume": total_records,
+        "total_amount": float(df_filtered["amount"].sum()) if "amount" in df_filtered.columns else 0,
+        "avg_amount": float(df_filtered["amount"].mean()) if "amount" in df_filtered.columns else 0,
+        "fraud_rate": float(df_filtered["fraud_flag"].mean() * 100) if "fraud_flag" in df_filtered.columns else 0,
+        "success_rate": float((df_filtered["status"] == "SUCCESS").mean() * 100) if "status" in df_filtered.columns else 0
+    }
+
+    # 2. Main Trend (Daily if few days, Monthly otherwise)
+    trend_data = []
+    time_col = next((c for c in ["timestamp", "date", "transaction_date"] if c in df.columns), None)
+    if time_col:
+        # Group by date
+        daily = df_filtered.set_index(time_col).resample('D')["amount"].agg(['sum', 'count']).reset_index()
+        daily[time_col] = daily[time_col].dt.strftime('%Y-%m-%d')
+        trend_data = daily.rename(columns={time_col: "date"}).to_dict('records')
+
+    # 3. Categorical Breakdowns
+    def get_breakdown(col, m="count", c="amount"):
+        if col not in df_filtered.columns: return []
+        if m == "sum":
+            res = df_filtered.groupby(col)[c].sum().sort_values(ascending=False).head(5)
+        else:
+            res = df_filtered.groupby(col).size().sort_values(ascending=False).head(5)
+        return [{"label": str(k), "value": float(v)} for k, v in res.items()]
+
+    breakdowns = {
+        "merchant": get_breakdown("merchant_category", metric, column),
+        "state": get_breakdown("state", metric, column),
+        "device": get_breakdown("device_type", "count"),
+    }
+
+    return {
+        "title": f"Dashboard: {filters.get('timeframe', 'Overall').title()}",
+        "summary": {
+            "timeframe": filters.get("timeframe", "all-time"),
+            "filters_applied": filters
+        },
+        "kpis": kpis,
+        "trend": trend_data,
+        "breakdowns": breakdowns,
+        "insights": [] # To be populated by explainability/LLM
+    }

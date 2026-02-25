@@ -43,3 +43,23 @@ export async function getCategoryBreakdown() {
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     return response.json();
 }
+/**
+ * Fetch conversation history for a session.
+ */
+export async function fetchChatHistory(sessionId) {
+    if (!sessionId) return { history: [] };
+    const response = await fetch(`${BASE_URL}/api/v1/history/${sessionId}`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}
+
+/**
+ * Delete a specific turn from history.
+ */
+export async function deleteHistoryItem(sessionId, index) {
+    const response = await fetch(`${BASE_URL}/api/v1/history/${sessionId}/${index}`, {
+        method: "DELETE",
+    });
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}

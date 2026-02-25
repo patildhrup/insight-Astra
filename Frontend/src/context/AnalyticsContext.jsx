@@ -4,13 +4,18 @@ const AnalyticsContext = createContext();
 
 export function AnalyticsProvider({ children }) {
     const [lastAnalysis, setLastAnalysis] = useState(null);
+    const [lastReport, setLastReport] = useState(null);
 
     const updateAnalysis = (data) => {
         setLastAnalysis(data);
     };
 
+    const updateReport = (data) => {
+        setLastReport(data);
+    };
+
     return (
-        <AnalyticsContext.Provider value={{ lastAnalysis, updateAnalysis }}>
+        <AnalyticsContext.Provider value={{ lastAnalysis, updateAnalysis, lastReport, updateReport }}>
             {children}
         </AnalyticsContext.Provider>
     );

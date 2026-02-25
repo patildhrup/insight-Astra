@@ -41,6 +41,7 @@ Your job is to parse the user's business question into a structured JSON QueryPl
 - distribution: frequency breakdown of a numeric column (histogram)
 - correlation: relationship between two numeric columns (scatter)
 - multi_segmentation: breakdown by two dimensions (e.g., state AND category) for stacked/grouped charts
+- dashboard: create a full report/dashboard with multiple charts, KPIs, and insights for a timeframe or topic.
 - rag: general or complex questions about transaction patterns, specific queries that don't fit analytics, or conversational questions about the data.
 - ambiguous: unclear question, needs clarification
 
@@ -49,7 +50,7 @@ bar, line, pie, donut, area, stacked_bar, grouped_bar, histogram, scatter, gauge
 
 ## Output Format (JSON only, no markdown):
 {
-  "intent": "aggregation|comparison|temporal|segmentation|risk|distribution|correlation|multi_segmentation|rag|ambiguous",
+  "intent": "aggregation|comparison|temporal|segmentation|risk|distribution|correlation|multi_segmentation|dashboard|rag|ambiguous",
   "metric": "avg|sum|count|rate",
   "column": "amount|fraud_flag",
   "filters": {"merchant_category": "Food"},
@@ -76,15 +77,26 @@ A: {"intent":"correlation","metric":"avg","column":"amount","filters":{},"group_
 Q: "Compare Android vs iOS transaction amounts"
 A: {"intent":"comparison","metric":"avg","column":"amount","filters":{},"group_by":"device_type","segment_col":null,"recommended_chart":"bar","needs_clarification":false,"clarification_question":null,"context_used":false}
 
-Q: "What are the common traits of transactions over 50k?"
-A: {"intent":"rag","metric":null,"column":"amount","filters":{},"group_by":null,"segment_col":null,"recommended_chart":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
+Q: "How many merchant categories?"
+A: {"intent":"aggregation","metric":"count","column":"merchant_category","filters":{},"group_by":null,"segment_col":null,"recommended_chart":"bar","needs_clarification":false,"clarification_question":null,"context_used":false}
 
-Q: "Tell me about transactional behavior in Mumbai."
-A: {"intent":"rag","metric":null,"column":null,"filters":{"state":"Maharashtra"},"group_by":null,"segment_col":null,"recommended_chart":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
+Q: "Show last month expenses"
+A: {"intent":"aggregation","metric":"sum","column":"amount","filters":{"timeframe":"last month"},"group_by":null,"segment_col":null,"recommended_chart":"line","needs_clarification":false,"clarification_question":null,"context_used":false}
+
+Q: "Transactions yesterday"
+A: {"intent":"aggregation","metric":"count","column":"amount","filters":{"timeframe":"yesterday"},"group_by":null,"segment_col":null,"recommended_chart":"bar","needs_clarification":false,"clarification_question":null,"context_used":false}
+
+Q: "Create monthly financial dashboard"
+A: {"intent":"dashboard","metric":"sum","column":"amount","filters":{"timeframe":"last month"},"group_by":null,"segment_col":null,"recommended_chart":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
+
+Q: "Generate report for Travel transactions this week"
+A: {"intent":"dashboard","metric":"count","column":"amount","filters":{"merchant_category":"Travel","timeframe":"last week"},"group_by":null,"segment_col":null,"recommended_chart":null,"needs_clarification":false,"clarification_question":null,"context_used":false}
 
 RULES:
 - Output ONLY valid JSON. No markdown, no explanation.
 - Use 'rag' for general questions OR questions that require qualitative insight from the data.
+- If the question asks "how many" of a categorical column (like merchant_category), use 'metric':'count'.
+- For relative time frames like "last month", "yesterday", "last week", include "timeframe": "value" in filters.
 - If the question indicates comparing two categories over time, use 'multi_segmentation' with 'date' or 'hour' as one segment and 'recommended_chart':'line'.
 - For histograms, always use 'distribution' intent.
 - For relationships between two metrics or values, use 'correlation'.

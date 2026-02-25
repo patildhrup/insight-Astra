@@ -107,6 +107,24 @@ def get_conversation_history(session_id: str) -> list[dict]:
     return ctx.get("conversation_history", [])
 
 
+def delete_history_item(session_id: str, index: int):
+    """Remove a specific user-assistant turn from history (turn = 2 entries)."""
+    _, ctx = get_or_create_session(session_id)
+    history = ctx.get("conversation_history", [])
+    
+    # Each turn is (user, assistant), so we remove two items
+    # index is the index of the user message in the 'turns' view (0, 1, 2...)
+    start_idx = index * 2
+    if 0 <= start_idx < len(history) - 1:
+        # Remove assistant then user
+        history.pop(start_idx + 1)
+        history.pop(start_idx)
+        
+    ctx["last_updated"] = datetime.utcnow().isoformat()
+    _sessions[session_id] = ctx
+    _set_redis(session_id, ctx)
+
+
 def get_last_context(session_id: str) -> dict:
     """Return the last known filters and dimensions."""
     _, ctx = get_or_create_session(session_id)

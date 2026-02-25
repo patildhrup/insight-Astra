@@ -33,6 +33,23 @@ class ChatResponse(BaseModel):
     clarification_question: Optional[str] = None
 
 
+@router.get("/history/{session_id}")
+async def get_history(session_id: str):
+    """
+    Retrieve the conversation history for a given session.
+    Used for the 'History' clock icon in the frontend.
+    """
+    history = context_manager.get_conversation_history(session_id)
+    return {"history": history}
+
+
+@router.delete("/history/{session_id}/{index}")
+async def delete_item(session_id: str, index: int):
+    """Delete a specific turn from history."""
+    context_manager.delete_history_item(session_id, index)
+    return {"status": "ok"}
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
@@ -132,6 +149,15 @@ async def chat(request: ChatRequest):
             sec_col = plan.get("secondary_segment") or "hour_of_day"
             raw_result = analytics_engine.query_correlation(column, sec_col)
             answer = f"Analysis of the relationship between {column} and {sec_col}."
+
+        elif intent == "dashboard":
+            raw_result = analytics_engine.generate_dashboard_data(metric, column, filters)
+            if "error" in raw_result:
+                answer = raw_result["error"]
+            else:
+                # Generate a narrative overview for the dashboard
+                answer = await explainability.generate_dashboard_narrative(request.message, raw_result)
+                raw_result["insights"] = [answer] # Use the narrative as the primary insight for now
 
         elif intent == "rag":
             context, docs = await rag_engine.query(request.message)
