@@ -14,7 +14,7 @@ load_dotenv()
 
 from app.core.llm import call_llm
 
-# ── System Prompt ──────────────────────────────────────────────────────────────
+# -- System Prompt ------------------------------------------------------------------
 
 SYSTEM_PROMPT = """You are an AI Query Planner for a UPI Transactions Analytics system.
 Your job is to parse the user's business question into a structured JSON QueryPlan.

@@ -18,15 +18,15 @@ from app.analytics import engine as analytics_engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load the UPI dataset once at startup so all requests share the same DataFrame."""
-    print("🚀 Loading UPI transactions dataset...")
+    print("[INFO] Loading UPI transactions dataset...")
     try:
         df = analytics_engine.load_data()
-        print(f"✅ Dataset loaded: {len(df):,} transactions, {len(df.columns)} columns")
+        print(f"[SUCCESS] Dataset loaded: {len(df):,} transactions, {len(df.columns)} columns")
         print(f"   Columns: {', '.join(df.columns.tolist())}")
     except Exception as e:
-        print(f"⚠️  Failed to load dataset: {e}")
+        print(f"[WARNING] Failed to load dataset: {e}")
     yield
-    print("🛑 Shutting down...")
+    print("[STOP] Shutting down...")
 
 
 app = FastAPI(
@@ -39,8 +39,8 @@ app = FastAPI(
 # ── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to frontend URL
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -53,7 +53,7 @@ app.include_router(analytics_router)
 # ── Health Check ──────────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "InsightX UPI Analytics API is running 🚀"}
+    return {"message": "InsightX UPI Analytics API is running [ONLINE]"}
 
 
 @app.get("/health")

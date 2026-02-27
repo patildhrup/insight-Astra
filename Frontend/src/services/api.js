@@ -63,3 +63,24 @@ export async function deleteHistoryItem(sessionId, index) {
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     return response.json();
 }
+/**
+ * Fetch live risk heatmap data.
+ */
+export async function fetchHeatmapData() {
+    const response = await fetch(`${BASE_URL}/api/v1/heatmap-risk`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}
+
+/**
+ * Simulate an executive action.
+ */
+export async function simulateAction(actionType, percentage) {
+    const response = await fetch(`${BASE_URL}/api/v1/simulate-action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action_type: actionType, percentage }),
+    });
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}

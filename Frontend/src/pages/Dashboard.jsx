@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
@@ -10,7 +11,17 @@ import {
     IndianRupee,
     Loader2,
     AlertTriangle,
+    Bell,
+    Settings,
+    Play,
+    Thermometer,
+    Globe,
+    TrendingDown,
+    Map
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { simulateAction, fetchHeatmapData } from "@/services/api";
 import confetti from "canvas-confetti";
 import { useAuth } from "../context/AuthContext";
 import { getAnalyticsSummary } from "@/services/api";
@@ -134,13 +145,20 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-8">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900 text-left">
-                    Welcome back, {user?.user_metadata?.first_name || 'Chief'}!
-                </h1>
-                <p className="text-gray-500 text-left">
-                    Real-time UPI transaction insights powered by AI. {kpis && <span className="text-emerald-600 font-medium">✓ Live data loaded</span>}
-                </p>
+            <div className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 text-left">
+                        Welcome back, {user?.user_metadata?.first_name || 'Chief'}!
+                    </h1>
+                    <p className="text-gray-500 text-left">
+                        Real-time UPI transaction insights powered by AI. {kpis && <span className="text-emerald-600 font-medium">✓ Live data loaded</span>}
+                    </p>
+                </div>
+                <div className="flex gap-2">
+                    <Badge variant="outline" className="px-3 py-1 border-primary/20 bg-primary/5 text-primary">
+                        System Online
+                    </Badge>
+                </div>
             </div>
 
             {kpiError && (
@@ -154,6 +172,18 @@ export default function Dashboard() {
                 {stats.map((stat) => (
                     <StatCard key={stat.label} {...stat} loading={kpiLoading} />
                 ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* 5. Executive Action Simulator */}
+                <div className="lg:col-span-1">
+                    <ExecutiveActionSimulator />
+                </div>
+
+                {/* 6. Live Risk Heatmap */}
+                <div className="lg:col-span-2">
+                    <RiskHeatmap />
+                </div>
             </div>
 
             <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden text-left">
@@ -209,6 +239,179 @@ export default function Dashboard() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+function ExecutiveActionSimulator() {
+    const [action, setAction] = useState("Reduce Transaction Limit");
+    const [percentage, setPercentage] = useState([20]);
+    const [result, setResult] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleSimulate = async () => {
+        setLoading(true);
+        try {
+            const data = await simulateAction(action, percentage[0]);
+            setResult(data);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Card className="border-none shadow-sm rounded-2xl bg-zinc-900 text-white overflow-hidden h-full">
+            <CardHeader className="bg-zinc-800/50 border-b border-zinc-700/50">
+                <div className="flex items-center gap-2">
+                    <Play className="w-4 h-4 text-emerald-400" />
+                    <CardTitle className="text-sm font-bold uppercase tracking-widest">Executive Simulator</CardTitle>
+                </div>
+            </CardHeader>
+            <CardContent className="p-5 space-y-6">
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-[10px] text-zinc-400 uppercase font-bold">Target Action</label>
+                        <Select value={action} onValueChange={setAction}>
+                            <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-200">
+                                <SelectItem value="Reduce Transaction Limit">Reduce Transaction Limit</SelectItem>
+                                <SelectItem value="Increase Fraud Monitoring">Increase Fraud Monitoring</SelectItem>
+                                <SelectItem value="Block Risky Device Type">Block Risky Device Type</SelectItem>
+                                <SelectItem value="Enable Extra Verification">Enable Extra Verification</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                        <div className="flex justify-between">
+                            <label className="text-[10px] text-zinc-400 uppercase font-bold">Intensity / Reach</label>
+                            <span className="text-xs text-emerald-400 font-bold">{percentage}%</span>
+                        </div>
+                        <Slider
+                            value={percentage}
+                            onValueChange={setPercentage}
+                            max={100}
+                            step={5}
+                            className="py-4"
+                        />
+                    </div>
+
+                    <button
+                        onClick={handleSimulate}
+                        disabled={loading}
+                        className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
+                        Simulate Impact
+                    </button>
+                </div>
+
+                {result && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="p-4 bg-zinc-800/50 rounded-2xl border border-zinc-700/50 grid grid-cols-2 gap-4"
+                    >
+                        <div className="text-center">
+                            <p className="text-[9px] text-zinc-400 uppercase">Fraud Change</p>
+                            <p className={`text-lg font-bold ${result.fraud_change < 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {result.fraud_change}%
+                            </p>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-[9px] text-zinc-400 uppercase">Revenue Impact</p>
+                            <p className={`text-lg font-bold ${result.revenue_change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {result.revenue_change > 0 ? '+' : ''}{result.revenue_change}%
+                            </p>
+                        </div>
+                    </motion.div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+function RiskHeatmap() {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchHeatmapData().then(res => {
+            setData(res.data || []);
+            setLoading(false);
+        }).catch(() => setLoading(false));
+    }, []);
+
+    const getColor = (val) => {
+        if (val > 4) return "bg-red-500";
+        if (val > 2) return "bg-amber-500";
+        return "bg-emerald-500";
+    };
+
+    if (loading) return (
+        <Card className="h-full border-none shadow-sm rounded-2xl bg-white flex items-center justify-center p-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary opacity-20" />
+        </Card>
+    );
+
+    const states = [...new Set(data.map(d => d.state))];
+    const times = ["Morning", "Afternoon", "Evening", "Night"];
+
+    return (
+        <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden h-full">
+            <CardHeader className="px-6 py-5 border-b border-gray-50 flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="text-lg font-bold">Live Risk Heatmap</CardTitle>
+                    <p className="text-xs text-gray-400">Regional Fraud Density by Time Slot</p>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-[10px] text-gray-500 font-bold uppercase">Low</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                        <span className="text-[10px] text-gray-500 font-bold uppercase">Critical</span>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="p-6">
+                <div className="overflow-x-auto">
+                    <div className="min-w-[500px]">
+                        <div className="grid grid-cols-5 gap-2 mb-2">
+                            <div />
+                            {times.map(t => (
+                                <div key={t} className="text-center text-[10px] font-bold text-gray-400 uppercase">{t}</div>
+                            ))}
+                        </div>
+                        <div className="space-y-2">
+                            {states.map(state => (
+                                <div key={state} className="grid grid-cols-5 gap-2 items-center">
+                                    <div className="text-xs font-medium text-gray-600 truncate">{state}</div>
+                                    {times.map(time => {
+                                        const val = data.find(d => d.state === state && d.time === time)?.value || 0;
+                                        return (
+                                            <motion.div
+                                                key={time}
+                                                whileHover={{ scale: 1.05 }}
+                                                className={`h-8 rounded-lg ${getColor(val)} opacity-80 cursor-pointer shadow-sm relative group`}
+                                            >
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <span className="text-[10px] font-bold text-white">{val}%</span>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 

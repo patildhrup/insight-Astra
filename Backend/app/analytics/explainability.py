@@ -19,7 +19,7 @@ def _fmt_pct(val: float | None) -> str:
 
 
 def format_aggregation_response(plan: dict, result: dict) -> str:
-    """Format aggregation query result."""
+    """Format aggregation query result in mandatory structured format."""
     metric = plan.get("metric", "avg")
     column = plan.get("column", "amount")
     filters = plan.get("filters", {})
@@ -29,40 +29,52 @@ def format_aggregation_response(plan: dict, result: dict) -> str:
     benchmark = result.get("benchmark")
     pct_diff = result.get("pct_diff_from_overall")
 
-    # Build filter description
     filter_desc = _describe_filters(filters)
-
-    # Column label
     col_label = _col_label(column)
     metric_label = _metric_label(metric)
 
     if value is None:
-        return f"❌ No data found for the given filters{' (' + filter_desc + ')' if filter_desc else ''}."
+        return "Query cannot be resolved using available dataset dimensions."
 
-    # Core result
+    # Format value string
     if column == "amount":
         val_str = _fmt_inr(value)
         bench_str = _fmt_inr(benchmark)
+        formula = f"{metric_label}(amount) across filtered records"
     elif metric in ("rate", "fraud_rate"):
         val_str = _fmt_pct(value)
         bench_str = _fmt_pct(benchmark)
+        formula = f"(Qualifying records / {count:,} total) x 100"
     else:
         val_str = f"{value:,}"
         bench_str = f"{benchmark:,}" if benchmark else "N/A"
+        formula = f"{metric_label}({col_label}) across filtered records"
 
     lines = []
-    lines.append(f"📊 **{metric_label} {col_label}{' for ' + filter_desc if filter_desc else ''}:** {val_str}")
-    lines.append(f"📈 Based on **{count:,}** transactions.")
+    lines.append(f"**Answer:**")
+    lines.append(f"{metric_label} {col_label}{' for ' + filter_desc if filter_desc else ''}: **{val_str}**")
+    lines.append("")
+    lines.append("**Data Applied:**")
+    lines.append(f"- Filters used: {filter_desc if filter_desc else 'None'}")
+    lines.append(f"- Sample size: {count:,} transactions")
+    lines.append("")
+    lines.append("**Calculation Logic:**")
+    lines.append(f"- Formula: {formula}")
     if benchmark is not None and pct_diff is not None:
         direction = "above" if pct_diff > 0 else "below"
-        lines.append(f"📌 This is **{abs(pct_diff):.1f}% {direction}** the overall {metric_label.lower()} of {bench_str}.")
-    # Business interpretation
-    lines.append(_get_interpretation(plan, value, benchmark, pct_diff))
-    return "\n\n".join(lines)
+        lines.append(f"- Overall benchmark: {bench_str} — result is {abs(pct_diff):.2f}% {direction} overall average")
+    lines.append("")
+    insight = _get_interpretation(plan, value, benchmark, pct_diff)
+    if insight:
+        lines.append("**Insight:**")
+        lines.append(insight)
+        lines.append("")
+    lines.append("**Confidence:** High — Direct dataset aggregation.")
+    return "\n".join(lines)
 
 
 def format_comparison_response(plan: dict, result: dict) -> str:
-    """Format a groupby comparison result."""
+    """Format a groupby comparison result in mandatory structured format."""
     group_by = result.get("group_by", "segment")
     column = result.get("column", "amount")
     metric = result.get("metric", "avg")
@@ -71,100 +83,20 @@ def format_comparison_response(plan: dict, result: dict) -> str:
     error = result.get("error")
 
     if error:
-        return f"⚠️ **Error in Comparison:** {error}"
+        return f"Query cannot be resolved using available dataset dimensions. ({error})"
 
     if not rows:
-        return "❌ No comparison data available for the given query."
+        return "Query cannot be resolved using available dataset dimensions."
 
     col_label = _col_label(column)
     metric_label = _metric_label(metric)
     group_label = group_by.replace("_", " ").title()
 
-    lines = [f"📊 **{metric_label} {col_label} by {group_label}** (across {total:,} transactions):\n"]
+    lines = []
+    lines.append("**Answer:**")
+    lines.append(f"{metric_label} {col_label} by {group_label} across {total:,} transactions:\n")
     for i, row in enumerate(rows):
         grp = row["group"]
-        val = row["value"]
-        cnt = row["count"]
-        icon = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "▪️"
-        if column == "amount":
-            val_str = _fmt_inr(val)
-        elif metric in ("rate", "fraud_rate"):
-            val_str = _fmt_pct(val)
-        else:
-            val_str = f"{val:,}"
-        lines.append(f"{icon} **{grp}**: {val_str} ({cnt:,} transactions)")
-
-    # Interpretation
-    if len(rows) >= 2:
-        top = rows[0]
-        bottom = rows[-1]
-        if top["value"] and bottom["value"] and bottom["value"] != 0:
-            spread = round((top["value"] - bottom["value"]) / bottom["value"] * 100, 1)
-            lines.append(f"\n📌 **Insight:** {top['group']} leads with a value {spread:.1f}% higher than {bottom['group']}.")
-
-    # Risk note if fraud-related
-    if "fraud" in column.lower() or metric in ("rate", "fraud_rate"):
-        highest = rows[0]
-        lines.append(f"\n⚠️ **Risk Note:** {highest['group']} shows the highest rate at {_fmt_pct(highest['value'])}. Recommend enhanced monitoring.")
-
-    return "\n".join(lines)
-
-
-def format_temporal_response(plan: dict, result: dict) -> str:
-    """Format peak hours / temporal analysis."""
-    filters = plan.get("filters", {})
-    filter_desc = _describe_filters(filters)
-    total = result.get("total_filtered", 0)
-
-    lines = []
-
-    if "peak_hours" in result:
-        peak_hours_data = result["peak_hours"]
-        peak_label = result.get("peak_label", "")
-        lines.append(f"⏰ **Peak Hours{' for ' + filter_desc if filter_desc else ''}:** {peak_label}")
-        lines.append(f"📈 Top 5 hours by transaction volume ({total:,} total transactions):\n")
-        for row in peak_hours_data:
-            hour = row.get("hour_of_day", "?")
-            count = row.get("count", 0)
-            pct = row.get("pct", 0)
-            avg_amt = row.get("avg_amount", 0)
-            lines.append(f"  • **{hour:02d}:00–{hour+1:02d}:00** → {count:,} transactions ({pct:.1f}%) | Avg: {_fmt_inr(avg_amt)}")
-        if len(peak_hours_data) > 0:
-            peak_hour = result.get("peak_hour")
-            if peak_hour is not None and peak_hour >= 18:
-                lines.append("\n📌 **Insight:** Evening peak suggests post-work or leisure spending behavior.")
-            elif peak_hour is not None and peak_hour < 12:
-                lines.append("\n📌 **Insight:** Morning peak indicates commute-time or early business transactions.")
-
-    if "daily_distribution" in result:
-        lines.append("\n📅 **Day-of-Week Breakdown:**")
-        for row in result["daily_distribution"]:
-            day = row.get("day_of_week", "?")
-            count = row.get("count", 0)
-            avg_amt = row.get("avg_amount", 0)
-            lines.append(f"  • **{day}** → {count:,} transactions | Avg: {_fmt_inr(avg_amt)}")
-
-    return "\n".join(lines) if lines else "No temporal data found."
-
-
-def format_segmentation_response(plan: dict, result: dict) -> str:
-    """Format segmentation result."""
-    segment_col = result.get("segment_col", "segment")
-    column = result.get("column", "amount")
-    metric = result.get("metric", "avg")
-    rows = result.get("results", [])
-    total_segs = result.get("total_segments", 0)
-
-    if not rows:
-        return f"❌ No segmentation data for '{segment_col}'."
-
-    col_label = _col_label(column)
-    metric_label = _metric_label(metric)
-    seg_label = segment_col.replace("_", " ").title()
-
-    lines = [f"📊 **{metric_label} {col_label} by {seg_label}** ({total_segs} segments):\n"]
-    for i, row in enumerate(rows[:10]):
-        seg = row["segment"]
         val = row["value"]
         cnt = row["count"]
         rank = f"#{i+1}"
@@ -174,72 +106,242 @@ def format_segmentation_response(plan: dict, result: dict) -> str:
             val_str = _fmt_pct(val)
         else:
             val_str = f"{val:,}"
-        lines.append(f"  {rank}. **{seg}** → {val_str} ({cnt:,} transactions)")
+        pct_of_total = round(cnt / total * 100, 2) if total > 0 else 0
+        lines.append(f"  {rank}. {grp}: {val_str} ({cnt:,} transactions, {pct_of_total:.2f}% of total)")
+
+    lines.append("")
+    lines.append("**Data Applied:**")
+    lines.append(f"- Filters used: {_describe_filters(plan.get('filters', {})) or 'None'}")
+    lines.append(f"- Group by: {group_label}")
+    lines.append(f"- Sample size: {total:,} transactions")
+    lines.append("")
+    lines.append("**Calculation Logic:**")
+    lines.append(f"- Formula: {metric_label}({col_label}) grouped by {group_label}, sorted descending")
+    if len(rows) >= 2:
+        top = rows[0]
+        bottom = rows[-1]
+        if top["value"] and bottom["value"] and bottom["value"] != 0:
+            spread = round((top["value"] - bottom["value"]) / bottom["value"] * 100, 2)
+            lines.append("")
+            lines.append("**Insight:**")
+            lines.append(f"{top['group']} leads with a spread of {spread:.2f}% above {bottom['group']}.")
+            if "fraud" in column.lower() or metric in ("rate", "fraud_rate"):
+                lines.append(f"Risk note: {top['group']} shows the highest rate at {_fmt_pct(top['value'])}. Enhanced monitoring recommended.")
+
+    lines.append("")
+    lines.append("**Confidence:** High — Direct dataset aggregation.")
+    return "\n".join(lines)
+
+
+def format_temporal_response(plan: dict, result: dict) -> str:
+    """Format peak hours / temporal analysis in mandatory structured format."""
+    filters = plan.get("filters", {})
+    filter_desc = _describe_filters(filters)
+    total = result.get("total_filtered", 0)
+
+    if not result.get("peak_hours") and not result.get("daily_distribution"):
+        return "Query cannot be resolved using available dataset dimensions."
+
+    lines = []
+    lines.append("**Answer:**")
+
+    if "peak_hours" in result:
+        peak_hours_data = result["peak_hours"]
+        peak_label = result.get("peak_label", "")
+        lines.append(f"Peak transaction hour{' for ' + filter_desc if filter_desc else ''}: {peak_label}")
+        lines.append(f"Top 5 hours by volume ({total:,} transactions analyzed):\n")
+        for row in peak_hours_data:
+            hour = row.get("hour_of_day", "?")
+            count = row.get("count", 0)
+            pct = row.get("pct", 0)
+            avg_amt = row.get("avg_amount", 0)
+            lines.append(f"  {hour:02d}:00-{hour+1:02d}:00 — {count:,} transactions ({pct:.2f}%) | Avg Amount: {_fmt_inr(avg_amt)}")
+
+    if "daily_distribution" in result:
+        lines.append("\nDay-of-Week Breakdown:")
+        for row in result["daily_distribution"]:
+            day = row.get("day_of_week", "?")
+            count = row.get("count", 0)
+            avg_amt = row.get("avg_amount", 0)
+            lines.append(f"  {day} — {count:,} transactions | Avg: {_fmt_inr(avg_amt)}")
+
+    lines.append("")
+    lines.append("**Data Applied:**")
+    lines.append(f"- Filters used: {filter_desc if filter_desc else 'None'}")
+    lines.append(f"- Sample size: {total:,} transactions")
+    lines.append("")
+    lines.append("**Calculation Logic:**")
+    lines.append("- Transaction count grouped by hour_of_day, sorted descending")
+    lines.append("- Percentage = (hour count / total count) x 100")
+
+    peak_hour = result.get("peak_hour")
+    if peak_hour is not None:
+        lines.append("")
+        lines.append("**Insight:**")
+        if peak_hour >= 18:
+            lines.append("Evening peak (18:00+) indicates post-work or leisure spending behavior dominates transaction volume.")
+        elif peak_hour < 12:
+            lines.append("Morning peak (before 12:00) indicates commute-time or early business transactions are predominant.")
+        else:
+            lines.append(f"Peak transaction hour falls at {peak_hour:02d}:00, indicating midday activity dominance.")
+
+    lines.append("")
+    lines.append("**Confidence:** High — Direct dataset aggregation.")
+    return "\n".join(lines)
+
+
+def format_segmentation_response(plan: dict, result: dict) -> str:
+    """Format segmentation result in mandatory structured format."""
+    segment_col = result.get("segment_col", "segment")
+    column = result.get("column", "amount")
+    metric = result.get("metric", "avg")
+    rows = result.get("results", [])
+    total_segs = result.get("total_segments", 0)
+
+    if not rows:
+        return "Query cannot be resolved using available dataset dimensions."
+
+    col_label = _col_label(column)
+    metric_label = _metric_label(metric)
+    seg_label = segment_col.replace("_", " ").title()
+
+    # Total count for percentage calculation
+    total_count = sum(r["count"] for r in rows)
+
+    lines = []
+    lines.append("**Answer:**")
+    lines.append(f"{metric_label} {col_label} by {seg_label} ({total_segs} segments, top 10 shown):\n")
+    for i, row in enumerate(rows[:10]):
+        seg = row["segment"]
+        val = row["value"]
+        cnt = row["count"]
+        rank = f"#{i+1}"
+        pct = round(cnt / total_count * 100, 2) if total_count > 0 else 0
+        if column == "amount":
+            val_str = _fmt_inr(val)
+        elif metric in ("rate", "fraud_rate"):
+            val_str = _fmt_pct(val)
+        else:
+            val_str = f"{val:,}"
+        lines.append(f"  {rank}. {seg}: {val_str} ({cnt:,} transactions, {pct:.2f}%)")
+
+    lines.append("")
+    lines.append("**Data Applied:**")
+    lines.append(f"- Segment column: {seg_label}")
+    lines.append(f"- Metric: {metric_label} of {col_label}")
+    lines.append(f"- Sample size: {total_count:,} transactions across {total_segs} segments")
+    lines.append("")
+    lines.append("**Calculation Logic:**")
+    lines.append(f"- Formula: {metric_label}({col_label}) grouped by {seg_label}, sorted descending")
+    lines.append("- Percentage = (segment count / total count) x 100")
 
     top = rows[0]
     if len(rows) > 1:
-        lines.append(f"\n📌 **Insight:** **{top['segment']}** ranks highest with {_fmt_pct(top['value']) if metric in ('rate','fraud_rate') else _fmt_inr(top['value'])}.")
+        top_val_str = _fmt_pct(top['value']) if metric in ('rate', 'fraud_rate') else _fmt_inr(top['value'])
+        lines.append("")
+        lines.append("**Insight:**")
+        lines.append(f"{top['segment']} ranks highest at {top_val_str}.")
+        if "fraud" in column.lower() or metric in ("rate", "fraud_rate"):
+            lines.append("Elevated fraud rates in specific segments may indicate targeted attack patterns or increased user vulnerability in those cohorts.")
 
-    if "fraud" in column.lower() or metric in ("rate", "fraud_rate"):
-        lines.append(f"\n⚠️ **Risk Note:** Higher fraud rates in certain segments may indicate targeted attack patterns or user vulnerability.")
-
+    lines.append("")
+    lines.append("**Confidence:** High — Direct dataset aggregation.")
     return "\n".join(lines)
 
 
 def format_risk_response(plan: dict, result: dict) -> str:
-    """Format fraud/risk metrics."""
+    """Format fraud/risk metrics in mandatory structured format."""
+    total_records = result.get("total_records", 0)
     lines = []
+    lines.append("**Answer:**")
 
     if "overall_fraud_rate" in result:
-        lines.append(f"🛡️ **Overall Fraud Rate:** {_fmt_pct(result['overall_fraud_rate'])} ({result.get('fraud_count', 0):,} fraudulent transactions out of {result.get('total_records', 0):,})")
-    if "overall_failure_rate" in result:
-        lines.append(f"❌ **Overall Failure Rate:** {_fmt_pct(result['overall_failure_rate'])} ({result.get('failed_count', 0):,} failed transactions)")
+        fraud_count = result.get('fraud_count', 0)
+        fraud_rate = result['overall_fraud_rate']
+        lines.append(f"Overall Fraud Rate: {_fmt_pct(fraud_rate)}")
+        lines.append(f"Overall Failure Rate: {_fmt_pct(result.get('overall_failure_rate', 0))}")
+        lines.append("")
+        lines.append("**Data Applied:**")
+        lines.append("- Filters used: None (full dataset)")
+        lines.append(f"- Sample size: {total_records:,} transactions")
+        lines.append("")
+        lines.append("**Calculation Logic:**")
+        lines.append(f"- Fraud Rate = ({fraud_count:,} fraud_flag=1 / {total_records:,} total) x 100 = {fraud_rate:.2f}%")
+        failed_count = result.get('failed_count', 0)
+        if failed_count:
+            lines.append(f"- Failure Rate = ({failed_count:,} status=FAILED / {total_records:,} total) x 100 = {result.get('overall_failure_rate', 0):.2f}%")
 
     if "fraud_by_segment" in result:
         seg_result = result["fraud_by_segment"]
         rows = seg_result.get("results", [])
         seg_col = seg_result.get("segment_col", "segment")
         seg_label = seg_col.replace("_", " ").title()
-        lines.append(f"\n📊 **Fraud Rate by {seg_label}:**")
+        lines.append(f"\nFraud Rate by {seg_label}:")
         for row in rows[:8]:
-            lines.append(f"  • **{row['segment']}** → {_fmt_pct(row['value'])} ({row['count']:,} transactions)")
+            pct_of_total = round(row['count'] / total_records * 100, 2) if total_records > 0 else 0
+            lines.append(f"  {row['segment']}: {_fmt_pct(row['value'])} ({row['count']:,} transactions, {pct_of_total:.2f}% of total)")
         if rows:
-            lines.append(f"\n⚠️ **Highest Risk:** {rows[0]['segment']} at {_fmt_pct(rows[0]['value'])}.")
+            lines.append(f"\nHighest Risk Segment: {rows[0]['segment']} at {_fmt_pct(rows[0]['value'])}.")
 
     if "failure_by_segment" in result:
         fail_rows = result["failure_by_segment"].get("results", [])
-        seg_col = plan.get("segment_col", "segment")
+        seg_col = plan.get("segment_col") or "segment"
         seg_label = seg_col.replace("_", " ").title()
-        lines.append(f"\n📊 **Failure Rate by {seg_label}:**")
+        lines.append(f"\nFailure Rate by {seg_label}:")
         for row in fail_rows[:8]:
-            lines.append(f"  • **{row['segment']}** → {_fmt_pct(row['value'])} ({row['count']:,} transactions)")
+            lines.append(f"  {row['segment']}: {_fmt_pct(row['value'])} ({row['count']:,} transactions)")
 
-    return "\n".join(lines) if lines else "No risk data available."
+    if len(lines) <= 1:
+        return "Query cannot be resolved using available dataset dimensions."
+
+    lines.append("")
+    lines.append("**Confidence:** High — Direct dataset aggregation.")
+    return "\n".join(lines)
 
 
 async def generate_rag_response(question: str, context: str) -> str:
-    """Uses LLM to generate a natural language answer based on retrieved CSV context."""
-    system_prompt = """You are an AI Analyst for InsightX, a UPI fraud detection system.
-Your goal is to answer the user's question based ONLY on the provided transaction data fragments (CSV rows).
+    """Uses LLM to generate a structured answer based ONLY on retrieved CSV context."""
+    system_prompt = f"""You are a Transaction Analytics Engine for InsightX — a UPI fraud intelligence system.
+You MUST answer ONLY using the transaction data fragments provided below.
 
-## Context / Transaction Data:
+CRITICAL RULES:
+1. Do NOT use external knowledge or make assumptions beyond the provided data.
+2. Do NOT fabricate numbers or patterns.
+3. If the answer cannot be derived from the data, respond exactly with:
+   "Query cannot be resolved using available dataset dimensions."
+4. Always use the mandatory response structure below.
+5. Use a professional, executive, analytical tone. No emojis. No filler.
+
+MANDATORY RESPONSE STRUCTURE:
+Answer:
+[Direct, precise answer with exact figures from the data]
+
+Data Applied:
+- Filters used
+- Sample size (number of records in context)
+
+Calculation Logic:
+- How the result was derived
+- Formula if rate/percentage used
+
+Insight (if applicable):
+- Pattern or trend strictly from the provided data
+
+Confidence:
+- High / Medium / Low with justification
+
+## Transaction Data Context:
 {context}
-
-## Instructions:
-- Provide a clear, professional, and data-backed answer.
-- If the data doesn't contain the answer, say you don't have enough specific information but offer a general insight based on what is available.
-- Mention specific patterns, amounts, or merchant categories if they appear in the context.
-- Keep the tone helpful and analytical.
 """
     messages = [
-        {"role": "system", "content": system_prompt.format(context=context)},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": question}
     ]
-    
+
     try:
-        return await call_llm(messages, temperature=0.3, max_tokens=700)
-    except Exception as e:
-        return f"I found some relevant data, but I'm having trouble summarizing it right now. \n\n**Raw Context:**\n{context[:500]}..."
+        return await call_llm(messages, temperature=0.1, max_tokens=800)
+    except Exception:
+        return "Query cannot be resolved using available dataset dimensions."
 
 
 async def generate_dashboard_narrative(question: str, data: dict) -> str:
@@ -273,14 +375,14 @@ async def generate_dashboard_narrative(question: str, data: dict) -> str:
 
 
 def format_clarification_response(clarification_question: str) -> str:
-    return f"🤔 {clarification_question}"
+    return f"Clarification Required: {clarification_question}"
 
 
 def format_error_response(error: str) -> str:
-    return f"⚠️ I encountered an issue: {error}\n\nPlease try rephrasing your question or be more specific about the dimension you'd like to analyze."
+    return f"An error occurred while processing your request: {error}\n\nPlease rephrase your question or specify the dimension, time range, or metric more precisely."
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# -- Helpers --------------------------------------------------------------------
 
 def _describe_filters(filters: dict) -> str:
     if not filters:
@@ -319,21 +421,19 @@ def _metric_label(metric: str) -> str:
 
 def _get_interpretation(plan: dict, value: float, benchmark: float | None, pct_diff: float | None) -> str:
     column = plan.get("column", "amount")
-    filters = plan.get("filters", {})
-    category = (filters or {}).get("merchant_category", "")
 
     if column == "amount":
         if pct_diff and pct_diff > 15:
-            return f"📌 **Insight:** This category shows significantly higher spending than average, suggesting premium or high-value purchases."
+            return "This segment shows spending {:.2f}% above the platform average, indicating premium or high-value transaction behavior.".format(abs(pct_diff))
         elif pct_diff and pct_diff < -15:
-            return f"📌 **Insight:** Below-average transaction amounts indicate budget or everyday spending behavior."
-        else:
-            return f"📌 **Insight:** Spending aligns closely with the platform average, indicating typical consumer behavior."
+            return "This segment shows spending {:.2f}% below the platform average, indicating budget or low-ticket transaction behavior.".format(abs(pct_diff))
+        elif pct_diff is not None:
+            return "Spending aligns within {:.2f}% of the platform average, consistent with typical transaction patterns.".format(abs(pct_diff))
     elif "fraud" in column:
         if value > 3:
-            return f"⚠️ **Risk Note:** Fraud rate above 3% is elevated. Enhanced transaction monitoring recommended for this segment."
+            return "Fraud rate above 3.00% is elevated. Enhanced transaction monitoring is recommended for this segment."
         elif value > 1.5:
-            return f"⚠️ **Risk Note:** Moderate fraud rate. Consider additional verification steps."
+            return "Moderate fraud rate detected. Additional verification steps should be considered."
         else:
-            return f"✅ **Risk Note:** Fraud rate is within acceptable range."
+            return "Fraud rate is within an acceptable threshold for this segment."
     return ""

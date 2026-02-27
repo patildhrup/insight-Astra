@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     MessageCircle, X, Send, Sparkles, BarChart3,
     TrendingUp, Shield, ChevronRight, Loader2, RefreshCw, History, Clock,
-    Mic, MicOff, Trash2
+    Mic, MicOff, Trash2, Zap, AlertCircle, BarChart, Target
 } from "lucide-react";
 import { sendChatMessage, fetchChatHistory, deleteHistoryItem } from "@/services/api";
 import ReactMarkdown from "react-markdown";
+import { Badge } from "@/components/ui/badge";
+import { useNavigate } from "react-router-dom";
+import { useAnalytics } from "@/context/AnalyticsContext";
 
 const SUGGESTED_QUERIES = [
     "What's the average amount for Food transactions?",
@@ -106,7 +109,7 @@ function MessageBubble({ msg, isLatest, onScroll }) {
                 <IntentIcon className="w-4 h-4 text-white" />
             </div>
 
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 space-y-3">
                 {/* Intent badge */}
                 {msg.intent && msg.intent !== "ambiguous" && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1.5">
@@ -136,8 +139,111 @@ function MessageBubble({ msg, isLatest, onScroll }) {
                         </div>
                     )}
                 </div>
+
+                {/* Professional Insights Cards */}
+                <AnimatePresence>
+                    {renderComplete && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-3"
+                        >
+                            {msg.strategic_impact && <StrategicImpactCard data={msg.strategic_impact} />}
+                            {msg.pattern_alert && <PatternMemoryAlert data={msg.pattern_alert} />}
+                            {msg.forecast_insight && <ForecastInsight data={msg.forecast_insight} />}
+                            {msg.benchmark_insight && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-3 flex gap-3 text-xs">
+                                    <Target className="w-4 h-4 text-blue-500 mt-0.5" />
+                                    <p className="text-blue-700 dark:text-blue-300">{msg.benchmark_insight}</p>
+                                </div>
+                            )}
+                            {msg.comparison_insight && (
+                                <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800 rounded-xl p-3 flex gap-3 text-xs">
+                                    <Zap className="w-4 h-4 text-violet-500 mt-0.5" />
+                                    <p className="text-violet-700 dark:text-violet-300">{msg.comparison_insight}</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </motion.div>
+    );
+}
+
+function StrategicImpactCard({ data }) {
+    if (!data) return null;
+    const rev_exp = data.revenue_exposure || 0;
+    const risk_index = data.risk_index || 0;
+    const affected = data.affected_users || 0;
+    const risk_level = data.risk_level || "Low";
+    const priority = data.priority || "P3";
+
+    return (
+        <div className="bg-zinc-900 text-white rounded-2xl p-4 border border-zinc-800 shadow-lg space-y-4">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold uppercase tracking-tighter">Strategic Impact Engine</span>
+                </div>
+                <Badge className={`${risk_level === 'High' ? 'bg-red-500' : risk_level === 'Medium' ? 'bg-amber-500' : 'bg-emerald-500'} text-[10px]`}>
+                    {priority} Priority
+                </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                    <p className="text-[10px] text-zinc-400 uppercase font-medium">Revenue Exposure</p>
+                    <p className="text-lg font-bold text-white">₹{rev_exp.toLocaleString()}</p>
+                </div>
+                <div className="space-y-1">
+                    <p className="text-[10px] text-zinc-400 uppercase font-medium">Risk Index</p>
+                    <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold">{risk_index}</span>
+                        <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full ${risk_index > 60 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                                style={{ width: `${risk_index}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p className="text-[11px] text-zinc-400 italic">
+                Strategic Priority: Identified {risk_level} operational risk for {affected}% of user segments.
+            </p>
+        </div>
+    );
+}
+
+function PatternMemoryAlert({ data }) {
+    if (!data) return null;
+    return (
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+            <div>
+                <p className="text-xs font-bold text-amber-800">Recurring Pattern Detected</p>
+                <p className="text-[11px] text-amber-700">Similar metric deviations (&gt;5%) detected {data.occurrences || 0} times in the last 7 days. This may indicate a persistent structural anomaly.</p>
+            </div>
+        </div>
+    );
+}
+
+function ForecastInsight({ data }) {
+    if (!data) return null;
+    const trend = data.trend_direction || "Stable";
+    return (
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex gap-3">
+            <TrendingUp className={`w-5 h-5 ${trend === 'Up' ? 'text-red-500' : 'text-emerald-500'} shrink-0`} />
+            <div>
+                <p className="text-xs font-bold text-emerald-800">Risk Forecast: {data.timeline || "Next 7 Days"}</p>
+                <p className="text-[11px] text-emerald-700">
+                    Projected value: <span className="font-bold">{data.projected_value || 0}</span> ({trend} trend).
+                    Based on linear regression of historical temporal data.
+                </p>
+            </div>
+        </div>
     );
 }
 
@@ -168,8 +274,6 @@ function ThinkingBubble() {
     );
 }
 
-import { useNavigate } from "react-router-dom";
-import { useAnalytics } from "@/context/AnalyticsContext";
 
 export default function AskMeAnything() {
     const navigate = useNavigate();
@@ -264,6 +368,11 @@ export default function AskMeAnything() {
                 content: result.answer,
                 intent: result.intent,
                 needsClarification: result.needs_clarification,
+                strategic_impact: result.strategic_impact,
+                pattern_alert: result.pattern_alert,
+                comparison_insight: result.comparison_insight,
+                forecast_insight: result.forecast_insight,
+                benchmark_insight: result.benchmark_insight
             };
             setMessages((prev) => [...prev, aiMsg]);
 
