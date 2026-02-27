@@ -59,6 +59,8 @@ def get_or_create_session(session_id: str | None) -> tuple[str, dict]:
         "last_group_by": None,
         "last_metric": None,
         "last_column": None,
+        "pattern_log": [],            # [{metric_type, deviation_pct, timestamp}]
+        "last_query_result": None,    # {metric, value, segment} for cross-question validator
         "created_at": datetime.utcnow().isoformat(),
         "last_updated": datetime.utcnow().isoformat(),
     }

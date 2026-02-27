@@ -17,7 +17,7 @@ export default function LandingPage() {
 
             {/* Simple Footer */}
             <footer className="py-12 border-t border-gray-100 text-center text-gray-500 bg-[#FAFAF9]">
-                <p>© 2026 AI Fraud Shield. All rights reserved.</p>
+                <p>© 2026 Xtreme InsightX. All rights reserved.</p>
             </footer>
         </main>
     );

@@ -24,14 +24,14 @@ class RAGEngine:
         # We try to load the local index, but we NEVER build it on startup
         # because it blocks the server for 20+ minutes.
         if os.path.exists(INDEX_PATH):
-            print("💾 Loading existing RAG index...")
+            print("[DATABASE] Loading existing RAG index...")
             try:
                 self.vector_store = FAISS.load_local(INDEX_PATH, self.embeddings, allow_dangerous_deserialization=True)
-                print("✅ RAG index loaded.")
+                print("[SUCCESS] RAG index loaded.")
             except Exception as e:
-                print(f"⚠️ Could not load index: {e}.")
+                print(f"[WARNING] Could not load index: {e}.")
         else:
-            print("🚀 Vector index missing. Using Instant Pandas-Retrieval Engine instead.")
+            print("[INFO] Vector index missing. Using Instant Pandas-Retrieval Engine instead.")
 
     def _fast_pandas_search(self, query: str, k: int = 15) -> str:
         """Instant keyword search on the dataframe without vector embeddings."""
@@ -54,6 +54,11 @@ class RAGEngine:
         except Exception as e:
             return f"Error in instant search: {e}"
 
+    def get_retriever(self):
+        if not self.vector_store:
+            return None
+        return self.vector_store.as_retriever(search_kwargs={"k": 5})
+
     async def query(self, user_query: str) -> tuple[str, list]:
         """
         Retrieves context using Vector Search (if available) or Instant Pandas Search.
@@ -61,19 +66,17 @@ class RAGEngine:
         if self.vector_store:
             try:
                 retriever = self.get_retriever()
-                docs = retriever.invoke(user_query)
-                context = "\n\n".join([doc.page_content for doc in docs])
-                return context, docs
+                if retriever:
+                    docs = retriever.invoke(user_query)
+                    context = "\n\n".join([doc.page_content for doc in docs])
+                    return context, docs
             except:
                 pass # Fallback to pandas
         
-        print("🔍 Using Pandas Instant-Retrieval...")
+        print("[SEARCH] Using Pandas Instant-Retrieval...")
         context = self._fast_pandas_search(user_query)
         # Create a dummy list for compatibility
         return context, []
-
-# Global singleton
-rag_engine = RAGEngine()
 
 # Global singleton
 rag_engine = RAGEngine()

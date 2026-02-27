@@ -9,10 +9,10 @@ import numpy as np
 from functools import lru_cache
 from typing import Optional
 
-# ── Dataset path ──────────────────────────────────────────────────────────────
+# -- Dataset path ------------------------------------------------------------------
 _CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "ml", "upi_transactions_2024.csv")
 
-# ── Global DataFrame (loaded once on import) ───────────────────────────────────
+# -- Global DataFrame (loaded once on import) -----------------------------------
 _df: Optional[pd.DataFrame] = None
 
 
@@ -119,7 +119,7 @@ def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     return df
 
 
-# ── Public query functions ─────────────────────────────────────────────────────
+# -- Public query functions -----------------------------------------------------
 
 def get_summary_stats() -> dict:
     """Overall KPI summary for the dashboard."""
