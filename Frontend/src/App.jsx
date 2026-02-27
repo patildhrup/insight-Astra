@@ -15,6 +15,9 @@ import { AuthProvider } from "./context/AuthContext";
 import { AnalyticsProvider } from "./context/AnalyticsContext";
 import Analytics from "./pages/Analytics";
 import AutoReport from "./pages/AutoReport";
+import BenchmarkPerformance from "./pages/BenchmarkPerformance";
+import BusinessAdvisor from "./pages/BusinessAdvisor";
+import ExecutiveSimulator from "./pages/ExecutiveSimulator";
 import CustomCursor from "./components/CustomCursor";
 import { useAuth } from "./context/AuthContext";
 
@@ -68,6 +71,9 @@ function App() {
                                         <Route index element={<Dashboard />} />
                                         <Route path="analytics" element={<Analytics />} />
                                         <Route path="auto-report" element={<AutoReport />} />
+                                        <Route path="benchmark" element={<BenchmarkPerformance />} />
+                                        <Route path="business-advisor" element={<BusinessAdvisor />} />
+                                        <Route path="executive-simulator" element={<ExecutiveSimulator />} />
                                         <Route path="settings" element={<SettingsPage />} />
                                         <Route path="*" element={<NotFoundPage />} />
                                     </Routes>

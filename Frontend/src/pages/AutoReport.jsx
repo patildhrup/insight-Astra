@@ -66,7 +66,7 @@ export default function AutoReport() {
     const { kpis, trend, breakdowns, title, insights } = lastReport;
 
     return (
-        <div ref={reportRef} className="space-y-8 animate-in fade-in duration-700 bg-white p-8 rounded-3xl">
+        <div ref={reportRef} className="space-y-8 animate-in fade-in duration-700 bg-white p-8 rounded-3xl transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -80,11 +80,11 @@ export default function AutoReport() {
                     <button
                         onClick={handleExportPDF}
                         disabled={isExporting}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all duration-300 disabled:opacity-50 hover:shadow-lg hover:shadow-red-600/30"
                     >
                         <Download className="w-4 h-4" /> {isExporting ? "Exporting..." : "Export PDF"}
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity">
+                    <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all duration-300 hover:shadow-lg hover:shadow-red-600/40">
                         <Share2 className="w-4 h-4" /> Share
                     </button>
                 </div>
@@ -92,7 +92,7 @@ export default function AutoReport() {
 
             {/* AI Narrative Insight */}
             {insights && insights.length > 0 && (
-                <div className="bg-gradient-to-br from-primary/5 to-violet-500/5 rounded-3xl p-6 border border-primary/10 relative overflow-hidden">
+                <div className="bg-gradient-to-br from-primary/5 to-violet-500/5 rounded-3xl p-6 border border-primary/10 relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
                     <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
                         <Sparkles className="w-24 h-24 text-primary" />
                     </div>
@@ -136,7 +136,7 @@ export default function AutoReport() {
             {/* Main Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Trend Chart */}
-                <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+                <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-gray-100 shadow-md transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
                     <h3 className="text-sm font-bold text-gray-900 mb-6 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-primary" /> Transaction Volume Trend
                     </h3>
@@ -162,7 +162,7 @@ export default function AutoReport() {
                 </div>
 
                 {/* Merchant Breakdown */}
-                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-md transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
                     <h3 className="text-sm font-bold text-gray-900 mb-6 flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-primary" /> Top Categories
                     </h3>
@@ -188,7 +188,7 @@ export default function AutoReport() {
 
             {/* Bottom Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-md transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
                     <h3 className="text-sm font-bold text-gray-900 mb-6">Regional Performance (Top 5 States)</h3>
                     <div className="h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -203,13 +203,13 @@ export default function AutoReport() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-md transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
                     <h3 className="text-sm font-bold text-gray-900 mb-6 flex items-center gap-2">
                         <Activity className="w-4 h-4 text-primary" /> Platform Insights
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                         {breakdowns.device.map((item, i) => (
-                            <div key={item.label} className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                            <div key={item.label} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40 hover:border-red-400">
                                 <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">{item.label}</p>
                                 <p className="text-lg font-black text-gray-900">{item.value.toLocaleString()}</p>
                                 <p className="text-[10px] text-primary font-bold">Active Devices</p>
@@ -231,7 +231,7 @@ function KPICard({ title, value, icon: Icon, trend, sub, variant = "default" }) 
     };
 
     return (
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-md transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
             <div className="flex justify-between items-start mb-4">
                 <div className={`p-2.5 rounded-xl ${variants[variant]}`}>
                     <Icon className="w-5 h-5" />

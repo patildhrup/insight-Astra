@@ -84,3 +84,24 @@ export async function simulateAction(actionType, percentage) {
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     return response.json();
 }
+/**
+ * Fetch executive benchmark comparison data.
+ */
+export async function fetchBenchmarkData() {
+    const response = await fetch(`${BASE_URL}/api/v1/benchmark`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}
+
+/**
+ * Ask the AI Business Advisor for strategy.
+ */
+export async function askBusinessAdvisor(query) {
+    const response = await fetch(`${BASE_URL}/api/v1/business-advisor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+    });
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}

@@ -5,12 +5,39 @@ Each session_id gets its own context dict with conversation history and last fil
 
 import uuid
 import json
+import os
 from typing import Any
 from datetime import datetime
+from pathlib import Path
 from app.core.redis_client import redis_client
 
+# Storage path
+STORAGE_DIR = Path(__file__).parent.parent.parent / "storage"
+STORAGE_DIR.mkdir(exist_ok=True)
+STORAGE_FILE = STORAGE_DIR / "sessions_storage.json"
+
 # In-memory fallback: session_id -> context dict
-_sessions: dict[str, dict] = {}
+_sessions: dict[str, Any] = {}
+
+def _load_from_disk():
+    global _sessions
+    if STORAGE_FILE.exists():
+        try:
+            with open(STORAGE_FILE, "r") as f:
+                _sessions = json.load(f)
+        except Exception as e:
+            print(f"Error loading sessions from disk: {e}")
+            _sessions = {}
+
+def _save_to_disk():
+    try:
+        with open(STORAGE_FILE, "w") as f:
+            json.dump(_sessions, f)
+    except Exception as e:
+        print(f"Error saving sessions to disk: {e}")
+
+# Initial load
+_load_from_disk()
 
 MAX_HISTORY = 20  # Max messages to keep per session
 SESSION_TTL = 86400 # 24 hours
@@ -67,11 +94,12 @@ def get_or_create_session(session_id: str | None) -> tuple[str, dict]:
     
     _sessions[session_id] = new_ctx
     _set_redis(session_id, new_ctx)
+    _save_to_disk()
     
     return session_id, new_ctx
 
 
-def update_context(session_id: str, query_plan: dict, user_message: str, assistant_response: str):
+def update_context(session_id: str, query_plan: dict, user_message: str, assistant_response: str, response_data: dict = None):
     """Persist the latest query plan and conversation turn into session context."""
     session_id, ctx = get_or_create_session(session_id)
 
@@ -90,7 +118,12 @@ def update_context(session_id: str, query_plan: dict, user_message: str, assista
     # Append to conversation history
     history = ctx["conversation_history"]
     history.append({"role": "user", "content": user_message})
-    history.append({"role": "assistant", "content": assistant_response})
+    
+    # Store assistant response with metadata if available
+    assistant_turn = {"role": "assistant", "content": assistant_response}
+    if response_data:
+        assistant_turn["metadata"] = response_data
+    history.append(assistant_turn)
 
     # Keep within limit
     if len(history) > MAX_HISTORY * 2:
@@ -101,6 +134,7 @@ def update_context(session_id: str, query_plan: dict, user_message: str, assista
     # Save back
     _sessions[session_id] = ctx
     _set_redis(session_id, ctx)
+    _save_to_disk()
 
 
 def get_conversation_history(session_id: str) -> list[dict]:
@@ -125,6 +159,7 @@ def delete_history_item(session_id: str, index: int):
     ctx["last_updated"] = datetime.utcnow().isoformat()
     _sessions[session_id] = ctx
     _set_redis(session_id, ctx)
+    _save_to_disk()
 
 
 def get_last_context(session_id: str) -> dict:
