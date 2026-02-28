@@ -514,11 +514,11 @@ async def generate_dashboard_narrative(question: str, data: dict) -> str:
     
     context = f"""
     - Timeframe: {data.get('summary', {}).get('timeframe')}
-    - Volume: {kpis.get('volume')} transactions
-    - Total Amount: INR {kpis.get('total_amount'):,.2f}
-    - Fraud Rate: {kpis.get('fraud_rate'):.2f}%
-    - Success Rate: {kpis.get('success_rate'):.2f}%
-    - Top Merchant Category: {breakdowns.get('merchant', [{}])[0].get('label', 'N/A')}
+    - Volume: {data.get('kpis', {}).get('volume', 0)} transactions
+    - Total Amount: {_fmt_inr(data.get('kpis', {}).get('total_amount'))}
+    - Fraud Rate: {_fmt_pct(data.get('kpis', {}).get('fraud_rate'))}
+    - Success Rate: {_fmt_pct(data.get('kpis', {}).get('success_rate'))}
+    - Top Merchant Category: {data.get('breakdowns', {}).get('merchant', [{}])[0].get('label', 'N/A')}
     """
 
     system_prompt = """You are a Senior Financial Data Analyst. 

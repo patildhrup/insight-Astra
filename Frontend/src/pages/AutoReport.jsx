@@ -49,18 +49,141 @@ export default function AutoReport() {
         }
     };
 
-    if (!lastReport) {
+    const EmptyState = () => {
+        const examples = [
+            "Generate a monthly transaction report",
+            "Show fraud trends by merchant category",
+            "Executive health synthesis for Maharashtra",
+            "Weekly KPI dashboard with distribution graphs"
+        ];
+
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-6">
-                    <FileText className="w-8 h-8 text-gray-400" />
+            <div className="relative min-h-[70vh] flex items-center justify-center p-6 overflow-hidden">
+                {/* Background Decorations */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    <motion.div
+                        animate={{
+                            scale: [1, 1.2, 1],
+                            rotate: [0, 90, 0],
+                            opacity: [0.1, 0.2, 0.1]
+                        }}
+                        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                        className="absolute -top-[10%] -right-[10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px]"
+                    />
+                    <motion.div
+                        animate={{
+                            scale: [1, 1.3, 1],
+                            rotate: [0, -90, 0],
+                            opacity: [0.1, 0.15, 0.1]
+                        }}
+                        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                        className="absolute -bottom-[10%] -left-[10%] w-[50%] h-[50%] bg-violet-500/10 rounded-full blur-[120px]"
+                    />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">No Report Generated Yet</h2>
-                <p className="text-gray-500 max-w-sm">
-                    Ask the AI Assistant to "create a monthly report" or "generate a dashboard" to see automated insights here.
-                </p>
+
+                <div className="relative z-10 max-w-2xl w-full">
+                    <div className="text-center mb-12">
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.5 }}
+                            className="inline-block relative mb-8"
+                        >
+                            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-150 animate-pulse" />
+                            <div className="relative bg-white p-6 rounded-[2.5rem] shadow-2xl border border-gray-100">
+                                <FileText className="w-12 h-12 text-primary" />
+                                <motion.div
+                                    animate={{ y: [0, -8, 0], rotate: [0, 10, 0] }}
+                                    transition={{ duration: 4, repeat: Infinity }}
+                                    className="absolute -top-4 -right-4 bg-violet-500 text-white p-2 rounded-xl shadow-lg"
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                </motion.div>
+                                <motion.div
+                                    animate={{ y: [0, 8, 0], rotate: [0, -10, 0] }}
+                                    transition={{ duration: 5, repeat: Infinity, delay: 1 }}
+                                    className="absolute -bottom-2 -left-6 bg-emerald-500 text-white p-2 rounded-xl shadow-lg"
+                                >
+                                    <Activity className="w-4 h-4" />
+                                </motion.div>
+                            </div>
+                        </motion.div>
+
+                        <motion.h2
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                            className="text-4xl font-black text-gray-900 tracking-tight mb-4"
+                        >
+                            Awaiting Intelligence
+                        </motion.h2>
+                        <motion.p
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.3 }}
+                            className="text-gray-500 text-lg font-medium leading-relaxed px-4"
+                        >
+                            Your automated command center is ready. Initialize your first report by prompting the AI Assistant below.
+                        </motion.p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12 px-4">
+                        <motion.div
+                            initial={{ x: -20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ delay: 0.4 }}
+                            className="bg-white/40 backdrop-blur-xl border border-white/60 p-5 rounded-3xl shadow-sm hover:shadow-md transition-all group"
+                        >
+                            <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                <Calendar className="w-5 h-5 text-primary" />
+                            </div>
+                            <h4 className="font-bold text-gray-900 mb-1">Time-Based Reports</h4>
+                            <p className="text-xs text-gray-500 leading-relaxed font-medium">Generate daily, weekly, or monthly executive summaries.</p>
+                        </motion.div>
+                        <motion.div
+                            initial={{ x: 20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ delay: 0.5 }}
+                            className="bg-white/40 backdrop-blur-xl border border-white/60 p-5 rounded-3xl shadow-sm hover:shadow-md transition-all group"
+                        >
+                            <div className="w-10 h-10 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                <AlertTriangle className="w-5 h-5 text-violet-600" />
+                            </div>
+                            <h4 className="font-bold text-gray-900 mb-1">Risk Deep Dives</h4>
+                            <p className="text-xs text-gray-500 leading-relaxed font-medium">Ask for fraud distribution and regional failure heatmaps.</p>
+                        </motion.div>
+                    </div>
+
+                    <motion.div
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="space-y-3 px-4"
+                    >
+                        <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest text-center mb-4">Try these prompts</p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                            {examples.map((ex, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => {
+                                        // Dispatch a custom event or just let the user copy it
+                                        navigator.clipboard.writeText(ex);
+                                        // Could add a toast here
+                                    }}
+                                    className="bg-white border border-gray-100 hover:border-primary/50 px-4 py-2 rounded-full text-xs font-bold text-gray-600 hover:text-primary transition-all hover:shadow-lg hover:shadow-primary/5"
+                                >
+                                    {ex}
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+                </div>
             </div>
         );
+    };
+
+    if (!lastReport) {
+        return <EmptyState />;
     }
 
     const { kpis, trend, breakdowns, title, insights } = lastReport;
@@ -109,27 +232,27 @@ export default function AutoReport() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard
                     title="Total Volume"
-                    value={kpis.volume}
+                    value={kpis?.volume || 0}
                     icon={Activity}
                     sub="Transactions"
                 />
                 <KPICard
                     title="Revenue"
-                    value={`₹${(kpis.total_amount / 100000).toFixed(1)}L`}
+                    value={kpis?.total_amount ? `₹${(kpis.total_amount / 100000).toFixed(1)}L` : "₹0"}
                     icon={IndianRupee}
                     trend={+12.5}
                 />
                 <KPICard
                     title="Fraud Rate"
-                    value={`${kpis.fraud_rate.toFixed(2)}%`}
+                    value={`${(kpis?.fraud_rate || 0).toFixed(2)}%`}
                     icon={ShieldCheck}
-                    variant={kpis.fraud_rate > 2 ? "danger" : "success"}
+                    variant={kpis?.fraud_rate > 2 ? "danger" : "success"}
                 />
                 <KPICard
                     title="Success Rate"
-                    value={`${kpis.success_rate.toFixed(1)}%`}
+                    value={`${(kpis?.success_rate || 0).toFixed(1)}%`}
                     icon={Activity}
-                    variant={kpis.success_rate < 90 ? "warning" : "success"}
+                    variant={kpis?.success_rate < 90 ? "warning" : "success"}
                 />
             </div>
 
@@ -142,7 +265,7 @@ export default function AutoReport() {
                     </h3>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={trend}>
+                            <AreaChart data={trend || []}>
                                 <defs>
                                     <linearGradient id="colorSum" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
@@ -167,7 +290,7 @@ export default function AutoReport() {
                         <BarChart3 className="w-4 h-4 text-primary" /> Top Categories
                     </h3>
                     <div className="space-y-4">
-                        {breakdowns.merchant.map((item, i) => (
+                        {breakdowns?.merchant?.map((item, i) => (
                             <div key={item.label} className="space-y-1">
                                 <div className="flex justify-between text-xs font-semibold mb-1">
                                     <span className="text-gray-600">{item.label}</span>
@@ -176,12 +299,12 @@ export default function AutoReport() {
                                 <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden">
                                     <motion.div
                                         initial={{ width: 0 }}
-                                        animate={{ width: `${(item.value / breakdowns.merchant[0].value) * 100}%` }}
+                                        animate={{ width: `${(item.value / (breakdowns.merchant[0]?.value || 1)) * 100}%` }}
                                         className="h-full bg-primary"
                                     />
                                 </div>
                             </div>
-                        ))}
+                        )) || <p className="text-xs text-center text-gray-400 py-10">No category breakdown available</p>}
                     </div>
                 </div>
             </div>
@@ -192,7 +315,7 @@ export default function AutoReport() {
                     <h3 className="text-sm font-bold text-gray-900 mb-6">Regional Performance (Top 5 States)</h3>
                     <div className="h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={breakdowns.state} layout="vertical">
+                            <BarChart data={breakdowns?.state || []} layout="vertical">
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="label" type="category" width={80} tick={{ fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
@@ -208,13 +331,13 @@ export default function AutoReport() {
                         <Activity className="w-4 h-4 text-primary" /> Platform Insights
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
-                        {breakdowns.device.map((item, i) => (
+                        {breakdowns?.device?.map((item, i) => (
                             <div key={item.label} className="p-4 rounded-2xl bg-gray-50 border border-gray-100 transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40 hover:border-red-400">
                                 <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">{item.label}</p>
                                 <p className="text-lg font-black text-gray-900">{item.value.toLocaleString()}</p>
                                 <p className="text-[10px] text-primary font-bold">Active Devices</p>
                             </div>
-                        ))}
+                        )) || <p className="text-xs text-center text-gray-400 py-10 w-full col-span-2">No device logs found</p>}
                     </div>
                 </div>
             </div>

@@ -4,7 +4,7 @@ import {
     MessageCircle, X, Send, Sparkles, BarChart3,
     TrendingUp, Shield, ChevronRight, Loader2, RefreshCw, History, Clock,
     Mic, MicOff, Trash2, Zap, AlertCircle, BarChart as BarChartIcon, Target, PieChart as PieIcon,
-    Layers, Layout, Activity
+    Layers, Layout, Activity, Search
 } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -546,7 +546,7 @@ export default function AskMeAnything() {
                         setMessages(restoredMessages);
                         setChatHistory(history);
                     }
-                });
+                }).catch(err => console.error("Failed to fetch chat history:", err));
             }
         } else {
             localStorage.removeItem("insightx_chat_session");
@@ -610,7 +610,7 @@ export default function AskMeAnything() {
             ]);
 
             // Handle Auto Dashboard Generation
-            if (result.intent === "dashboard" && result.data) {
+            if (result.intent === "dashboard" && result.data && typeof result.data === 'object') {
                 updateReport(result.data);
                 setTimeout(() => {
                     navigate("/dashboard/auto-report");

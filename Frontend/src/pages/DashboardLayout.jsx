@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 
 const sidebarLinks = [
     { name: "Overview", icon: LayoutDashboard, path: "/dashboard" },
-    { name: "Executive Simulator", icon: Activity, path: "/dashboard/executive-simulator" },
+    { name: "Executive Simulator", icon: Zap, path: "/dashboard/executive-simulator" },
     { name: "Benchmark Performance", icon: Activity, path: "/dashboard/benchmark" },
     { name: "AI Business Advisor", icon: BrainCircuit, path: "/dashboard/business-advisor" },
     { name: "Analytics", icon: BarChart3, path: "/dashboard/analytics" },

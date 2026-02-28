@@ -10,7 +10,7 @@ import {
     Lightbulb,
     Loader2
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { askBusinessAdvisor } from "@/services/api";
 
 export default function BusinessAdvisor() {
@@ -111,8 +111,8 @@ export default function BusinessAdvisor() {
                                                 <div className="flex justify-between items-start mb-2">
                                                     <h4 className="font-black text-gray-900 text-base">{strat.title}</h4>
                                                     <Badge className={`text-[9px] font-black px-2 py-0 border-none ${strat.risk_level === 'Low' ? 'bg-emerald-50 text-emerald-600' :
-                                                            strat.risk_level === 'Medium' ? 'bg-amber-50 text-amber-600' :
-                                                                'bg-red-50 text-red-600'
+                                                        strat.risk_level === 'Medium' ? 'bg-amber-50 text-amber-600' :
+                                                            'bg-red-50 text-red-600'
                                                         }`}>
                                                         {strat.risk_level} RISK
                                                     </Badge>
@@ -160,16 +160,12 @@ export default function BusinessAdvisor() {
                                                     }}
                                                 />
                                                 <Bar dataKey="profit" radius={[12, 12, 12, 12]} barSize={80}>
-                                                    <motion.div>
-                                                        {chartData.map((entry, index) => (
-                                                            <motion.rect
-                                                                key={`cell-${index}`}
-                                                                fill={index === 0 ? '#9ca3af' : '#DD2C00'}
-                                                                initial={{ height: 0 }}
-                                                                animate={{ height: '100%' }}
-                                                            />
-                                                        ))}
-                                                    </motion.div>
+                                                    {chartData.map((entry, index) => (
+                                                        <Cell
+                                                            key={`cell-${index}`}
+                                                            fill={index === 0 ? '#9ca3af' : '#DD2C00'}
+                                                        />
+                                                    ))}
                                                 </Bar>
                                             </BarChart>
                                         </ResponsiveContainer>

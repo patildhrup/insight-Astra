@@ -329,17 +329,20 @@ async def chat(request: ChatRequest):
     benchmark_insight = None
 
     if intent != "ambiguous":
+        # Ensure result is a dict to prevent NoneType attribute errors in formatters
+        safe_res = primary_result if isinstance(primary_result, dict) else {}
+        
         # 1. Strategic Impact Engine
-        strategic_impact = _calculate_strategic_impact(primary_result, intent)
+        strategic_impact = _calculate_strategic_impact(safe_res, intent)
         # 2. Pattern Memory System
-        pattern_alert = _check_pattern_memory(session_id, intent, plan, primary_result)
+        pattern_alert = _check_pattern_memory(session_id, intent, plan, safe_res)
         # 3. Cross-Question Validator
-        comparison_insight = _get_cross_question_comparison(session_id, intent, plan, primary_result)
+        comparison_insight = _get_cross_question_comparison(session_id, intent, plan, safe_res)
         # 4. Risk Forecasting (for temporal queries)
         if intent == "temporal" or "time" in request.message.lower():
-             forecast_insight = _get_risk_forecast(primary_result)
+             forecast_insight = _get_risk_forecast(safe_res)
         # 9. Competitive Benchmark
-        benchmark_insight = _get_benchmark_insight(intent, primary_result)
+        benchmark_insight = _get_benchmark_insight(intent, safe_res)
 
     # Persist the current result for future comparisons
     _store_query_result(session_id, intent, plan, primary_result)
