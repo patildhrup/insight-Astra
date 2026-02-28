@@ -9,9 +9,6 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 MODELS = [
     "google/gemini-2.0-flash-lite-001",
-    "google/gemini-flash-1.5-8b",
-    "meta-llama/llama-3.1-8b-instruct:free",
-    "mistralai/mistral-7b-instruct:free",
 ]
 
 async def call_llm(messages: list[dict], temperature: float = 0.1, max_tokens: int = 512) -> str:

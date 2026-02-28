@@ -19,6 +19,7 @@ import BenchmarkPerformance from "./pages/BenchmarkPerformance";
 import BusinessAdvisor from "./pages/BusinessAdvisor";
 import ExecutiveSimulator from "./pages/ExecutiveSimulator";
 import CustomCursor from "./components/CustomCursor";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuth } from "./context/AuthContext";
 
 function ScrollToTop() {
@@ -52,49 +53,51 @@ function App() {
     return (
         <AuthProvider>
             <AnalyticsProvider>
-                <Router>
-                    {/* Global custom cursor — rendered once for all pages */}
-                    <CustomCursor />
+                <ErrorBoundary>
+                    <Router>
+                        {/* Global custom cursor — rendered once for all pages */}
+                        <CustomCursor />
 
-                    <ScrollToTop />
-                    <Routes>
-                        <Route path="/" element={<LandingPage />} />
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/signup" element={<SignupPage />} />
-                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                        <Route path="/reset-password" element={<ResetPasswordPage />} />
-                        <Route
-                            path="/dashboard/*"
-                            element={
-                                <DashboardLayout>
-                                    <Routes>
-                                        <Route index element={<Dashboard />} />
-                                        <Route path="analytics" element={<Analytics />} />
-                                        <Route path="auto-report" element={<AutoReport />} />
-                                        <Route path="benchmark" element={<BenchmarkPerformance />} />
-                                        <Route path="business-advisor" element={<BusinessAdvisor />} />
-                                        <Route path="executive-simulator" element={<ExecutiveSimulator />} />
-                                        <Route path="settings" element={<SettingsPage />} />
-                                        <Route path="*" element={<NotFoundPage />} />
-                                    </Routes>
-                                </DashboardLayout>
-                            }
+                        <ScrollToTop />
+                        <Routes>
+                            <Route path="/" element={<LandingPage />} />
+                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="/signup" element={<SignupPage />} />
+                            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                            <Route path="/reset-password" element={<ResetPasswordPage />} />
+                            <Route
+                                path="/dashboard/*"
+                                element={
+                                    <DashboardLayout>
+                                        <Routes>
+                                            <Route index element={<Dashboard />} />
+                                            <Route path="analytics" element={<Analytics />} />
+                                            <Route path="auto-report" element={<AutoReport />} />
+                                            <Route path="benchmark" element={<BenchmarkPerformance />} />
+                                            <Route path="business-advisor" element={<BusinessAdvisor />} />
+                                            <Route path="executive-simulator" element={<ExecutiveSimulator />} />
+                                            <Route path="settings" element={<SettingsPage />} />
+                                            <Route path="*" element={<NotFoundPage />} />
+                                        </Routes>
+                                    </DashboardLayout>
+                                }
+                            />
+                            <Route path="*" element={<NotFoundPage />} />
+                        </Routes>
+                        <ToastContainer
+                            position="top-right"
+                            autoClose={5000}
+                            hideProgressBar={false}
+                            newestOnTop
+                            closeOnClick
+                            rtl={false}
+                            pauseOnFocusLoss
+                            draggable
+                            pauseOnHover
+                            theme="light"
                         />
-                        <Route path="*" element={<NotFoundPage />} />
-                    </Routes>
-                    <ToastContainer
-                        position="top-right"
-                        autoClose={5000}
-                        hideProgressBar={false}
-                        newestOnTop
-                        closeOnClick
-                        rtl={false}
-                        pauseOnFocusLoss
-                        draggable
-                        pauseOnHover
-                        theme="light"
-                    />
-                </Router>
+                    </Router>
+                </ErrorBoundary>
             </AnalyticsProvider>
         </AuthProvider>
     );

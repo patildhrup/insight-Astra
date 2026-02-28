@@ -42,7 +42,7 @@ Your job is to parse the user's business question into a structured JSON QueryPl
 - correlation: relationship between two numeric columns (scatter)
 - multi_segmentation: breakdown by two dimensions (e.g., state AND category) for stacked/grouped charts
 - dashboard: create a full report/dashboard with multiple charts, KPIs, and insights
-- rag: general or complex questions about transaction patterns
+- rag: general/complex questions about patterns, ML modeling, strategy, or advisory
 - ambiguous: unclear question, needs clarification
 
 ## Recommended Charts:
@@ -72,6 +72,9 @@ bar, line, pie, donut, area, stacked_bar, grouped_bar, histogram, scatter
 Q: "Show category spending as a donut chart"
 A: {"intent":"segmentation","metric":"sum","column":"amount","filters":{},"group_by":null,"segment_col":"merchant_category","recommended_chart":"donut","needs_clarification":false}
 
+Q: "Propose an ML modeling strategy for 95/5 fraud split"
+A: {"intent":"rag","metric":"avg","column":"fraud_flag","filters":{},"group_by":null,"segment_col":null,"recommended_chart":null,"needs_clarification":false}
+
 Q: "Trend of transactions this week as an area chart"
 A: {"intent":"temporal","metric":"count","column":"amount","filters":{"timeframe":"last week"},"group_by":null,"segment_col":null,"recommended_chart":"area","needs_clarification":false}
 
@@ -89,6 +92,7 @@ A: {"intent":"correlation","metric":"avg","column":"amount","filters":{},"group_
 
 RULES:
 - **Autonomous Visualization**: If the prompt contains "show", "difference", "generate", "diagram", "comparison", or "visualize", YOU MUST select a `recommended_chart`. Do NOT ask the user which chart they want.
+- **Strategic Advisory**: If the user asks for "strategy", "advice", "ml", "modeling", "sampling", or "how should we handle", map to `rag` intent.
 - **Expert Mapping (Component-Count)**:
     - If the user is comparing **multiple components/categories** (e.g., "all states", "all categories", "breakdown by all"), use `pie` or `donut`.
     - If the user is comparing **exactly 2 components** (e.g., "Android vs iOS", "Fraud vs Legit", "Today vs Yesterday"), use `bar` or `histogram` (if numeric).
