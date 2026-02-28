@@ -39,7 +39,7 @@ app = FastAPI(
 # ── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://astra-y4o7.onrender.com"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
