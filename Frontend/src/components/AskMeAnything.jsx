@@ -3,8 +3,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     MessageCircle, X, Send, Sparkles, BarChart3,
     TrendingUp, Shield, ChevronRight, Loader2, RefreshCw, History, Clock,
-    Mic, MicOff, Trash2, Zap, AlertCircle, BarChart, Target
+    Mic, MicOff, Trash2, Zap, AlertCircle, BarChart as BarChartIcon, Target, PieChart as PieIcon,
+    Layers, Layout, Activity
 } from "lucide-react";
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
+    ScatterChart, Scatter, ZAxis, Legend
+} from 'recharts';
 import { sendChatMessage, fetchChatHistory, deleteHistoryItem } from "@/services/api";
 import ReactMarkdown from "react-markdown";
 import { Badge } from "@/components/ui/badge";
@@ -12,14 +18,14 @@ import { useNavigate } from "react-router-dom";
 import { useAnalytics } from "@/context/AnalyticsContext";
 
 const SUGGESTED_QUERIES = [
-    "What's the average amount for Food transactions?",
-    "Compare iOS vs Android spending",
-    "Which age group has the highest fraud rate?",
-    "Peak hours for Entertainment?",
-    "Fraud rate by state",
-    "Failure rate on weekends?",
-    "5G vs WiFi transaction comparison",
-    "Top merchant categories by volume",
+    "Average amount by category as a donut chart",
+    "Show a weekly transaction trend area chart",
+    "Compare fraud vs legit transactions by state as a stacked bar",
+    "Histogram of transaction amounts",
+    "Is there a correlation between amount and time?",
+    "Show category spending as a pie chart",
+    "Transaction distribution by age group",
+    "Which device type has the highest failure rate?",
 ];
 
 const INTENT_ICONS = {
@@ -80,7 +86,7 @@ function TypewriterText({ text, onComplete, onProgress }) {
     );
 }
 
-function MessageBubble({ msg, isLatest, onScroll }) {
+function MessageBubble({ msg, isLatest, onScroll, onSuggestionClick }) {
     const [renderComplete, setRenderComplete] = useState(!isLatest || msg.role === "user");
     const IntentIcon = INTENT_ICONS[msg.intent] || INTENT_ICONS.default;
 
@@ -148,6 +154,17 @@ function MessageBubble({ msg, isLatest, onScroll }) {
                             animate={{ opacity: 1, y: 0 }}
                             className="space-y-3"
                         >
+                            {msg.multi_charts && msg.multi_charts.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {msg.multi_charts.map((chart, idx) => (
+                                        <div key={idx} className="bg-white/50 dark:bg-zinc-900/50 p-3 rounded-2xl border border-gray-100 dark:border-zinc-800">
+                                            <ChartRenderer chartData={chart} />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                msg.chart_data && <ChartRenderer chartData={msg.chart_data} />
+                            )}
                             {msg.strategic_impact && <StrategicImpactCard data={msg.strategic_impact} />}
                             {msg.pattern_alert && <PatternMemoryAlert data={msg.pattern_alert} />}
                             {msg.forecast_insight && <ForecastInsight data={msg.forecast_insight} />}
@@ -163,12 +180,207 @@ function MessageBubble({ msg, isLatest, onScroll }) {
                                     <p className="text-violet-700 dark:text-violet-300">{msg.comparison_insight}</p>
                                 </div>
                             )}
+
+                            {/* Recommendations / Suggested Follow-ups */}
+                            {msg.suggestions && msg.suggestions.length > 0 && (
+                                <div className="pt-4 mt-2 border-t border-gray-100 dark:border-zinc-800/50">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Suggested Analyses</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {msg.suggestions.map((suggestion, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => onSuggestionClick?.(suggestion)}
+                                                className="px-3 py-1.5 bg-gray-50 dark:bg-zinc-800/40 hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/20 text-[11px] rounded-lg border border-gray-200 dark:border-zinc-700/50 transition-all active:scale-95 flex items-center gap-1.5 group/chip"
+                                            >
+                                                <Search className="w-3 h-3 opacity-40 group-hover/chip:text-primary group-hover/chip:opacity-100" />
+                                                {suggestion}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
             </div>
         </motion.div>
     );
+}
+
+const CHART_COLORS = [
+    '#f59e0b', '#8b5cf6', '#10b981', '#ef4444', '#3b82f6',
+    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+];
+
+function ChartRenderer({ chartData }) {
+    if (!chartData || !chartData.data) return null;
+    const { type, data, keys, title } = chartData;
+
+    return (
+        <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-4 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    {title || "Visual Analysis"}
+                </span>
+                <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                </div>
+            </div>
+
+            <div className="h-[220px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    {renderSpecificChart(type, data, keys)}
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+}
+
+function renderSpecificChart(type, data, keys) {
+    const commonProps = {
+        data,
+        margin: { top: 10, right: 10, left: -20, bottom: 0 }
+    };
+
+    switch (type) {
+        case 'line':
+            return (
+                <LineChart {...commonProps}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8882" />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line type="monotone" dataKey="value" stroke="url(#paint0_linear)" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: '#fff' }} />
+                    <defs>
+                        <linearGradient id="paint0_linear" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor="#f59e0b" />
+                            <stop offset="100%" stopColor="#8b5cf6" />
+                        </linearGradient>
+                    </defs>
+                </LineChart>
+            );
+        case 'area':
+            return (
+                <AreaChart {...commonProps}>
+                    <defs>
+                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8882" />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="value" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorValue)" />
+                </AreaChart>
+            );
+        case 'bar':
+            return (
+                <BarChart {...commonProps}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8882" />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} fillOpacity={0.8} />
+                        ))}
+                    </Bar>
+                </BarChart>
+            );
+        case 'stacked_bar':
+            return (
+                <BarChart {...commonProps}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8882" />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                    {keys && keys.map((key, index) => (
+                        <Bar key={key} dataKey={key} stackId="a" fill={CHART_COLORS[index % CHART_COLORS.length]} radius={index === keys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    ))}
+                </BarChart>
+            );
+        case 'grouped_bar':
+            return (
+                <BarChart {...commonProps}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8882" />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                    {keys && keys.map((key, index) => (
+                        <Bar key={key} dataKey={key} fill={CHART_COLORS[index % CHART_COLORS.length]} radius={[4, 4, 0, 0]} />
+                    ))}
+                    {!keys && <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />}
+                </BarChart>
+            );
+        case 'pie':
+        case 'donut':
+            return (
+                <PieChart>
+                    <Pie
+                        data={data}
+                        innerRadius={type === 'donut' ? 60 : 0}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        animationBegin={0}
+                        animationDuration={1500}
+                    >
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="none" />
+                        ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend iconType="circle" layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ fontSize: '10px' }} />
+                </PieChart>
+            );
+        case 'histogram':
+            return (
+                <BarChart {...commonProps} barGap={0}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8882" />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" fill="#3b82f6" fillOpacity={0.6} stroke="#3b82f6" />
+                </BarChart>
+            );
+        case 'scatter':
+            return (
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 0, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8882" />
+                    <XAxis type="number" dataKey="x" fontSize={10} tickLine={false} axisLine={false} name="X" />
+                    <YAxis type="number" dataKey="y" fontSize={10} tickLine={false} axisLine={false} name="Y" />
+                    <ZAxis type="number" range={[60, 400]} />
+                    <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
+                    <Scatter name="Data Point" data={data} fill="#8b5cf6" fillOpacity={0.6} />
+                </ScatterChart>
+            );
+        default:
+            return <BarChart {...commonProps}><Bar dataKey="value" fill="#8b5cf6" /></BarChart>;
+    }
+}
+
+function CustomTooltip({ active, payload, label }) {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 shadow-xl">
+                <p className="text-[10px] font-bold text-gray-400 mb-1">{label || payload[0].payload.name}</p>
+                {payload.map((entry, index) => (
+                    <p key={index} className="text-xs font-semibold" style={{ color: entry.color || entry.fill || '#fff' }}>
+                        {entry.name}: {typeof entry.value === 'number' && entry.value > 1000 ? `₹${entry.value.toLocaleString()}` : entry.value}
+                    </p>
+                ))}
+            </div>
+        );
+    }
+    return null;
 }
 
 function StrategicImpactCard({ data }) {
@@ -316,10 +528,23 @@ export default function AskMeAnything() {
             if (messages.length === 0) {
                 fetchChatHistory(sessionId).then(data => {
                     const history = data.history || [];
-                    setChatHistory(history);
                     if (history.length > 0) {
-                        // Restore messages if history exists? 
-                        // For now we just show history items in the history view.
+                        // Map backend history format ({role, content, metadata}) to frontend format
+                        const restoredMessages = history.map((turn, idx) => {
+                            const base = {
+                                id: turn.id || `hist-${idx}`,
+                                role: turn.role,
+                                content: turn.content,
+                                intent: turn.intent || (turn.role === "assistant" ? "history" : null)
+                            };
+                            // If it's an assistant message with metadata, spread the metadata (contains chart_data, etc.)
+                            if (turn.role === "assistant" && turn.metadata) {
+                                return { ...base, ...turn.metadata };
+                            }
+                            return base;
+                        });
+                        setMessages(restoredMessages);
+                        setChatHistory(history);
                     }
                 });
             }
@@ -366,15 +591,23 @@ export default function AskMeAnything() {
                 id: Date.now() + 1,
                 role: "assistant",
                 content: result.answer,
-                intent: result.intent,
+                chart_data: result.chart_data,
                 needsClarification: result.needs_clarification,
                 strategic_impact: result.strategic_impact,
                 pattern_alert: result.pattern_alert,
                 comparison_insight: result.comparison_insight,
                 forecast_insight: result.forecast_insight,
-                benchmark_insight: result.benchmark_insight
+                benchmark_insight: result.benchmark_insight,
+                suggestions: result.suggestions
             };
             setMessages((prev) => [...prev, aiMsg]);
+
+            // Update local chat history so the clock icon view is fresh
+            setChatHistory(prev => [
+                ...prev,
+                { role: "user", content: query },
+                { role: "assistant", content: result.answer, metadata: result }
+            ]);
 
             // Handle Auto Dashboard Generation
             if (result.intent === "dashboard" && result.data) {
@@ -538,22 +771,36 @@ export default function AskMeAnything() {
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {chatHistory.filter(m => m.role === "user").map((msg, i) => (
+                                        {chatHistory.reduce((acc, curr, idx) => {
+                                            if (curr.role === 'user') {
+                                                const answer = chatHistory[idx + 1];
+                                                acc.push({ query: curr.content, answer: answer?.content, hasData: !!answer?.metadata?.chart_data, index: idx });
+                                            }
+                                            return acc;
+                                        }, []).map((item, i) => (
                                             <div key={i} className="relative group/item">
                                                 <button
                                                     onClick={() => {
-                                                        sendMessage(msg.content);
+                                                        sendMessage(item.query);
                                                         setShowHistory(false);
                                                     }}
-                                                    className="w-full text-left p-3 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 hover:border-primary/50 transition-all text-xs text-gray-600 dark:text-gray-300 shadow-sm flex gap-3 group"
+                                                    className="w-full text-left p-3 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 hover:border-primary/50 transition-all shadow-sm flex flex-col gap-1 group"
                                                 >
-                                                    <Clock className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary mt-0.5" />
-                                                    <span className="flex-1 truncate">{msg.content}</span>
-                                                    <ChevronRight className="w-3 h-3 text-gray-300" />
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="w-3 h-3 text-gray-400 group-hover:text-primary" />
+                                                        <span className="flex-1 text-[11px] font-bold text-gray-700 dark:text-gray-200 truncate">{item.query}</span>
+                                                        {item.hasData && <BarChart3 className="w-3 h-3 text-emerald-500" title="Contains Data" />}
+                                                        <ChevronRight className="w-3 h-3 text-gray-300" />
+                                                    </div>
+                                                    {item.answer && (
+                                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 pl-5">
+                                                            {item.answer.replace(/[#*`]/g, '')}
+                                                        </p>
+                                                    )}
                                                 </button>
                                                 <button
-                                                    onClick={(e) => handleDeleteHistory(e, i)}
-                                                    className="absolute right-8 top-1/2 -translate-y-1/2 p-1.5 opacity-0 group-hover/item:opacity-100 hover:text-red-500 transition-all text-gray-400"
+                                                    onClick={(e) => handleDeleteHistory(e, Math.floor(item.index / 2))}
+                                                    className="absolute right-8 top-4 p-1.5 opacity-0 group-hover/item:opacity-100 hover:text-red-500 transition-all text-gray-400"
                                                     title="Delete entry"
                                                 >
                                                     <Trash2 className="w-3 h-3" />
@@ -569,8 +816,9 @@ export default function AskMeAnything() {
                                     <MessageBubble
                                         key={msg.id}
                                         msg={msg}
-                                        isLatest={i === messages.length - 1 && msg.role === "assistant"}
+                                        isLatest={i === messages.length - 1}
                                         onScroll={scrollToBottom}
+                                        onSuggestionClick={sendMessage}
                                     />
                                 ))}
 

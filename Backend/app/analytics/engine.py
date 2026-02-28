@@ -218,6 +218,8 @@ def query_aggregation(metric: str, column: str, filters: dict) -> dict:
         "pct_diff_from_overall": pct_diff,
         "count": total_filtered,
         "filters_applied": filters,
+        "chart_data": [{"name": "Result", "value": result}, {"name": "Benchmark", "value": benchmark}] if benchmark else None,
+        "chart_type": "bar"
     }
 
 
@@ -261,10 +263,28 @@ def query_comparison(group_by: str, metric: str, column: str, filters: dict) -> 
         "results": result_rows,
         "total_records": len(filtered),
         "chart_data": [
-            {"name": r["group"], "value": r["value"]} for r in result_rows[:15]
+            {"name": r["group"], "value": r["value"]} for r in result_rows[:20]
         ],
         "chart_type": "bar"
     }
+
+def query_segmentation(segment_col: str, metric: str, column: str, filters: dict) -> dict:
+    """
+    Segmentation logic, e.g. amount by state.
+    """
+    df = get_df()
+    filtered = _apply_filters(df.copy(), filters)
+
+    if segment_col not in filtered.columns:
+        return {"error": f"Column '{segment_col}' not found."}
+
+    # Use existing grouping logic
+    result = query_comparison(segment_col, metric, column, filters)
+    result["intent"] = "segmentation"
+    # Suggest donut for category breakdowns as it looks more modern
+    result["chart_type"] = "donut" if len(result["chart_data"]) <= 10 else "bar"
+    
+    return result
 
 
 def query_temporal(filters: dict) -> dict:
@@ -278,36 +298,26 @@ def query_temporal(filters: dict) -> dict:
     result = {}
 
     if "hour_of_day" in filtered.columns:
-        hourly = filtered.groupby("hour_of_day").agg(
-            count=("amount", "count"),
-            avg_amount=("amount", "mean")
-        ).round(2)
-        total_count = hourly["count"].sum()
-        hourly["pct"] = (hourly["count"] / total_count * 100).round(1)
-        top5 = hourly.nlargest(5, "count").reset_index()
-        result["peak_hours"] = top5.to_dict(orient="records")
-        # Find the single peak hour window
-        peak_hour = int(hourly["count"].idxmax())
-        result["peak_hour"] = peak_hour
-        result["peak_label"] = f"{peak_hour:02d}:00–{peak_hour+1:02d}:00"
+        hourly = filtered.groupby("hour_of_day").size().reindex(range(24), fill_value=0)
+        result["hourly_trend"] = [{"name": f"{h:02d}:00", "value": int(v)} for h, v in hourly.items()]
+        result["peak_hour"] = int(hourly.idxmax())
+        result["peak_label"] = f"{result['peak_hour']:02d}:00"
 
     if "day_of_week" in filtered.columns:
         day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        daily = filtered.groupby("day_of_week").agg(
-            count=("amount", "count"),
-            avg_amount=("amount", "mean")
-        ).round(2)
-        daily = daily.reindex([d for d in day_order if d in daily.index])
-        result["daily_distribution"] = daily.reset_index().to_dict(orient="records")
+        daily = filtered.groupby("day_of_week").size().reindex(day_order, fill_value=0)
+        result["daily_trend"] = [{"name": d, "value": int(v)} for d, v in daily.items()]
 
     result["total_filtered"] = len(filtered)
     result["filters_applied"] = filters
     
-    peak_hour_data = result.get("peak_hours", [])
-    result["chart_data"] = [
-        {"name": f"{int(r['hour_of_day']):02d}:00", "value": r["count"]} for r in peak_hour_data
-    ]
-    result["chart_type"] = "line"
+    # Prioritize hourly trend if available
+    if "hourly_trend" in result:
+        result["chart_data"] = result["hourly_trend"]
+        result["chart_type"] = "area"
+    elif "daily_trend" in result:
+        result["chart_data"] = result["daily_trend"]
+        result["chart_type"] = "line"
     
     return result
 
@@ -414,8 +424,8 @@ def query_correlation(col1: str, col2: str) -> dict:
     if col1 not in df.columns or col2 not in df.columns:
         return {"error": "One or more columns not found"}
         
-    # Sample if dataset is too large, but for 1000 rows it's fine
-    sample = df[[col1, col2]].dropna().head(100)
+    # Sample if dataset is too large, but for limited rows it's better to show more
+    sample = df[[col1, col2]].dropna().sample(min(200, len(df)))
     result_data = [{"x": float(row[col1]), "y": float(row[col2])} for _, row in sample.iterrows()]
     
     return {
@@ -436,9 +446,12 @@ def query_multi_segmentation(dim1: str, dim2: str, metric: str, column: str) -> 
     else:
         pivot = df.groupby([dim1, dim2])[column].mean().unstack(fill_value=0)
         
+    if dim2 == "fraud_flag":
+        pivot = pivot.rename(columns={0: "Legit", 1: "Fraud", "0": "Legit", "1": "Fraud"})
+        
     result_data = []
     # Recharts expects: [{name: 'GroupA', Series1: 10, Series2: 20}]
-    for idx, row in pivot.head(10).iterrows():
+    for idx, row in pivot.head(15).iterrows():
         item = {"name": str(idx)}
         for col in pivot.columns:
             item[str(col)] = float(row[col])
@@ -484,7 +497,8 @@ def generate_dashboard_data(metric: str = "avg", column: str = "amount", filters
         "total_amount": float(df_filtered["amount"].sum()) if "amount" in df_filtered.columns else 0,
         "avg_amount": float(df_filtered["amount"].mean()) if "amount" in df_filtered.columns else 0,
         "fraud_rate": float(df_filtered["fraud_flag"].mean() * 100) if "fraud_flag" in df_filtered.columns else 0,
-        "success_rate": float((df_filtered["status"] == "SUCCESS").mean() * 100) if "status" in df_filtered.columns else 0
+        "success_rate": float((df_filtered["status"] == "SUCCESS").mean() * 100) if "status" in df_filtered.columns else 0,
+        "active_locations": int(df_filtered["state"].nunique()) if "state" in df_filtered.columns else 0
     }
 
     # 2. Main Trend (Daily if few days, Monthly otherwise)
@@ -521,4 +535,105 @@ def generate_dashboard_data(metric: str = "avg", column: str = "amount", filters
         "trend": trend_data,
         "breakdowns": breakdowns,
         "insights": [] # To be populated by explainability/LLM
+    }
+def get_benchmark_comparison() -> dict:
+    """Calculates MoM and YoY growth for key metrics."""
+    df = get_df()
+    time_col = next((c for c in ["timestamp", "date", "transaction_date", "datetime"] if c in df.columns), None)
+    if not time_col:
+        return {"error": "No time column found for benchmarking."}
+
+    # Use the end of dataset as reference 'now'
+    now = df[time_col].max()
+    
+    def get_metrics_for_period(start, end):
+        mask = (df[time_col] >= start) & (df[time_col] <= end)
+        period_df = df[mask]
+        total_txns = len(period_df)
+        fraud_count = int(period_df["fraud_flag"].sum()) if "fraud_flag" in period_df.columns else 0
+        fraud_loss = float(period_df[period_df["fraud_flag"] == 1]["amount"].sum()) if "amount" in period_df.columns else 0
+        fraud_rate = (fraud_count / total_txns * 100) if total_txns > 0 else 0
+        
+        success_count = int((period_df["status"].str.upper() == "SUCCESS").sum()) if "status" in period_df.columns else 0
+        approval_rate = (success_count / total_txns * 100) if total_txns > 0 else 0
+        
+        return {
+            "transactions": total_txns,
+            "fraud_rate": round(fraud_rate, 2),
+            "fraud_loss": round(fraud_loss, 2),
+            "approval_rate": round(approval_rate, 2)
+        }
+
+    def calc_growth(curr, prev):
+        if prev == 0: return 0
+        return round(((curr - prev) / prev) * 100, 1)
+
+    # 1. Month Comparison (MoM)
+    curr_month_start = now.replace(day=1, hour=0, minute=0, second=0)
+    prev_month_end = curr_month_start - pd.Timedelta(seconds=1)
+    prev_month_start = prev_month_end.replace(day=1)
+    
+    current_m = get_metrics_for_period(curr_month_start, now)
+    previous_m = get_metrics_for_period(prev_month_start, prev_month_end)
+    
+    month_comp = {}
+    for key in current_m:
+        month_comp[key] = {
+            "current": current_m[key],
+            "previous": previous_m[key],
+            "growth": calc_growth(current_m[key], previous_m[key])
+        }
+
+    # 2. Year Comparison (YoY)
+    curr_year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0)
+    prev_year_start = curr_year_start - pd.DateOffset(years=1)
+    prev_year_end = curr_year_start - pd.Timedelta(seconds=1)
+
+    current_y = get_metrics_for_period(curr_year_start, now)
+    previous_y = get_metrics_for_period(prev_year_start, prev_year_end)
+
+    year_comp = {}
+    for key in current_y:
+        year_comp[key] = {
+            "current": current_y[key],
+            "previous": previous_y[key],
+            "growth": calc_growth(current_y[key], previous_y[key])
+        }
+
+    return {
+        "month_comparison": month_comp,
+        "year_comparison": year_comp
+    }
+
+def get_business_metrics_summary() -> dict:
+    """Consolidates high-level business metrics for the AI Advisor."""
+    df = get_df()
+    total_revenue = float(df["amount"].sum()) if "amount" in df.columns else 0
+    fraud_loss = float(df[df["fraud_flag"] == 1]["amount"].sum()) if "amount" in df.columns else 0
+    fraud_rate = float(df["fraud_flag"].mean() * 100) if "fraud_flag" in df.columns else 0
+    
+    # Heuristic for operational cost (e.g., 0.5% of volume + fixed cost per transaction)
+    op_cost = (total_revenue * 0.005) + (len(df) * 2) 
+    
+    success_rate = 0
+    if "status" in df.columns:
+        success_rate = float((df["status"] == "SUCCESS").mean() * 100)
+    
+    # Identify high risk segment
+    high_risk_seg = "Unknown"
+    if "merchant_category" in df.columns:
+        risk_by_cat = df.groupby("merchant_category")["fraud_flag"].mean()
+        high_risk_seg = risk_by_cat.idxmax()
+        high_risk_loss = float(df[(df["merchant_category"] == high_risk_seg) & (df["fraud_flag"] == 1)]["amount"].sum())
+    else:
+        high_risk_loss = 0
+
+    return {
+        "total_revenue": round(total_revenue, 2),
+        "fraud_loss": round(fraud_loss, 2),
+        "fraud_rate": round(fraud_rate, 2),
+        "operational_cost": round(op_cost, 2),
+        "approval_rate": round(success_rate, 2),
+        "high_risk_segment": high_risk_seg,
+        "high_risk_segment_loss": round(high_risk_loss, 2)
     }

@@ -17,14 +17,20 @@ import {
     Thermometer,
     Globe,
     TrendingDown,
-    Map
+    Map,
+    Sparkles,
+    TrendingUp,
+    LayoutDashboard,
+    BrainCircuit,
+    Lightbulb,
+    TrendingUp as TrendUpIcon
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { simulateAction, fetchHeatmapData } from "@/services/api";
+import { simulateAction, fetchHeatmapData, getAnalyticsSummary } from "@/services/api";
 import confetti from "canvas-confetti";
 import { useAuth } from "../context/AuthContext";
-import { getAnalyticsSummary } from "@/services/api";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const SAMPLE_TRANSACTIONS = [
     { id: "UPI-9012", user: "Priya Sharma", amount: "₹1,200", date: "Today, 11:45 AM", risk: "Low", status: "Approved" },
@@ -36,32 +42,37 @@ const SAMPLE_TRANSACTIONS = [
 
 function StatCard({ label, value, icon: Icon, color, bg, subtitle, loading }) {
     return (
-        <Card className="border-none shadow-sm rounded-2xl bg-white p-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium text-gray-500">{label}</CardTitle>
-                <div className={`${bg} p-2 rounded-xl`}>
-                    <Icon className={`w-4 h-4 ${color}`} />
-                </div>
-            </CardHeader>
-            <CardContent>
-                {loading ? (
-                    <div className="flex items-center gap-2 h-8">
-                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                        <span className="text-sm text-gray-400">Loading...</span>
+        <motion.div
+            whileHover={{ y: -5, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        >
+            <Card className="border border-gray-100 hover:border-red-300 shadow-md rounded-2xl bg-white p-2 transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
+                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                    <CardTitle className="text-sm font-medium text-gray-500">{label}</CardTitle>
+                    <div className={`${bg} p-2 rounded-xl`}>
+                        <Icon className={`w-4 h-4 ${color}`} />
                     </div>
-                ) : (
-                    <>
-                        <div className="text-2xl font-bold">{value}</div>
-                        {subtitle && (
-                            <div className="flex items-center text-xs text-emerald-500 font-medium mt-1">
-                                <ArrowUpRight className="w-3 h-3 mr-1" />
-                                {subtitle}
-                            </div>
-                        )}
-                    </>
-                )}
-            </CardContent>
-        </Card>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <div className="flex items-center gap-2 h-8">
+                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                            <span className="text-sm text-gray-400">Loading...</span>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="text-2xl font-bold">{value}</div>
+                            {subtitle && (
+                                <div className="flex items-center text-xs text-emerald-500 font-medium mt-1">
+                                    <ArrowUpRight className="w-3 h-3 mr-1" />
+                                    {subtitle}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+        </motion.div>
     );
 }
 
@@ -175,18 +186,13 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 5. Executive Action Simulator */}
-                <div className="lg:col-span-1">
-                    <ExecutiveActionSimulator />
-                </div>
-
                 {/* 6. Live Risk Heatmap */}
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-3">
                     <RiskHeatmap />
                 </div>
             </div>
 
-            <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden text-left">
+            <Card className="border-none shadow-md rounded-2xl bg-white overflow-hidden text-left transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
                 <CardHeader className="px-6 py-6 border-b border-gray-50">
                     <CardTitle className="text-lg font-bold">Recent UPI Transactions</CardTitle>
                 </CardHeader>
@@ -242,97 +248,7 @@ export default function Dashboard() {
     );
 }
 
-function ExecutiveActionSimulator() {
-    const [action, setAction] = useState("Reduce Transaction Limit");
-    const [percentage, setPercentage] = useState([20]);
-    const [result, setResult] = useState(null);
-    const [loading, setLoading] = useState(false);
 
-    const handleSimulate = async () => {
-        setLoading(true);
-        try {
-            const data = await simulateAction(action, percentage[0]);
-            setResult(data);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <Card className="border-none shadow-sm rounded-2xl bg-zinc-900 text-white overflow-hidden h-full">
-            <CardHeader className="bg-zinc-800/50 border-b border-zinc-700/50">
-                <div className="flex items-center gap-2">
-                    <Play className="w-4 h-4 text-emerald-400" />
-                    <CardTitle className="text-sm font-bold uppercase tracking-widest">Executive Simulator</CardTitle>
-                </div>
-            </CardHeader>
-            <CardContent className="p-5 space-y-6">
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <label className="text-[10px] text-zinc-400 uppercase font-bold">Target Action</label>
-                        <Select value={action} onValueChange={setAction}>
-                            <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-200">
-                                <SelectItem value="Reduce Transaction Limit">Reduce Transaction Limit</SelectItem>
-                                <SelectItem value="Increase Fraud Monitoring">Increase Fraud Monitoring</SelectItem>
-                                <SelectItem value="Block Risky Device Type">Block Risky Device Type</SelectItem>
-                                <SelectItem value="Enable Extra Verification">Enable Extra Verification</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2 pt-2">
-                        <div className="flex justify-between">
-                            <label className="text-[10px] text-zinc-400 uppercase font-bold">Intensity / Reach</label>
-                            <span className="text-xs text-emerald-400 font-bold">{percentage}%</span>
-                        </div>
-                        <Slider
-                            value={percentage}
-                            onValueChange={setPercentage}
-                            max={100}
-                            step={5}
-                            className="py-4"
-                        />
-                    </div>
-
-                    <button
-                        onClick={handleSimulate}
-                        disabled={loading}
-                        className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                    >
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
-                        Simulate Impact
-                    </button>
-                </div>
-
-                {result && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="p-4 bg-zinc-800/50 rounded-2xl border border-zinc-700/50 grid grid-cols-2 gap-4"
-                    >
-                        <div className="text-center">
-                            <p className="text-[9px] text-zinc-400 uppercase">Fraud Change</p>
-                            <p className={`text-lg font-bold ${result.fraud_change < 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {result.fraud_change}%
-                            </p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-[9px] text-zinc-400 uppercase">Revenue Impact</p>
-                            <p className={`text-lg font-bold ${result.revenue_change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {result.revenue_change > 0 ? '+' : ''}{result.revenue_change}%
-                            </p>
-                        </div>
-                    </motion.div>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
 
 function RiskHeatmap() {
     const [data, setData] = useState([]);
@@ -361,7 +277,7 @@ function RiskHeatmap() {
     const times = ["Morning", "Afternoon", "Evening", "Night"];
 
     return (
-        <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden h-full">
+        <Card className="border-none shadow-md rounded-2xl bg-white overflow-hidden h-full transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40">
             <CardHeader className="px-6 py-5 border-b border-gray-50 flex flex-row items-center justify-between">
                 <div>
                     <CardTitle className="text-lg font-bold">Live Risk Heatmap</CardTitle>
@@ -414,4 +330,3 @@ function RiskHeatmap() {
         </Card>
     );
 }
-

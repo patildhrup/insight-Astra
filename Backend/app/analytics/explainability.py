@@ -2,8 +2,67 @@
 Explainability Engine — converts raw analytics results into rich natural-language responses.
 """
 
+import json
 from typing import Any
 from app.core.llm import call_llm
+
+
+async def generate_business_strategy(query: str, metrics: dict) -> dict:
+    """AI advisor mode: Generates executive strategies based on business metrics."""
+    prompt = f"""You are a Senior AI Business Advisor for InsightX.
+    Analyze these metrics and the query to provide a high-level executive strategy.
+
+    METRICS:
+    - Total Revenue: ₹{metrics['total_revenue']:,}
+    - Fraud Loss: ₹{metrics['fraud_loss']:,}
+    - Fraud Rate: {metrics['fraud_rate']}%
+    - Op Cost: ₹{metrics['operational_cost']:,}
+    - Approval Rate: {metrics['approval_rate']}%
+    - High Risk Segment: {metrics['high_risk_segment']} (Loss: ₹{metrics['high_risk_segment_loss']:,})
+
+    QUERY: "{query}"
+
+    RETURN JSON ONLY:
+    {{
+      "analysis_summary": "string",
+      "strategies": [
+        {{ "title": "string", "description": "string", "estimated_profit_impact": number, "risk_level": "Low/Medium/High" }}
+      ],
+      "chart_projection": {{ "current_profit": number, "projected_profit": number }}
+    }}
+    """
+    
+    messages = [
+        {"role": "system", "content": "Fintech Strategy Advisor. Return JSON only."},
+        {"role": "user", "content": prompt}
+    ]
+    
+    try:
+        res = await call_llm(messages, temperature=0.2, max_tokens=1000)
+        # Handle markdown blocks
+        if "```json" in res:
+            res = res.split("```json")[1].split("```")[0].strip()
+        elif "```" in res:
+            res = res.split("```")[1].split("```")[0].strip()
+        
+        return json.loads(res)
+    except Exception:
+        profit = metrics['total_revenue'] - metrics['fraud_loss'] - metrics['operational_cost']
+        return {
+            "analysis_summary": "Analysis suggests optimizing fraud controls in high-risk categories.",
+            "strategies": [
+                {
+                    "title": "Enhanced Risk Scoring",
+                    "description": "Deploy real-time verification for suspicious segments.",
+                    "estimated_profit_impact": metrics['fraud_loss'] * 0.2,
+                    "risk_level": "Medium"
+                }
+            ],
+            "chart_projection": {
+                "current_profit": round(profit, 2),
+                "projected_profit": round(profit * 1.1, 2)
+            }
+        }
 
 
 def _fmt_inr(val: float | None) -> str:
@@ -69,6 +128,12 @@ def format_aggregation_response(plan: dict, result: dict) -> str:
         lines.append("**Insight:**")
         lines.append(insight)
         lines.append("")
+
+    chart_note = _get_chart_rationale(plan.get("recommended_chart", "bar"))
+    if chart_note:
+        lines.append(f"**Visualization:** {chart_note}")
+        lines.append("")
+
     lines.append("**Confidence:** High — Direct dataset aggregation.")
     return "\n".join(lines)
 
@@ -245,6 +310,11 @@ def format_segmentation_response(plan: dict, result: dict) -> str:
             lines.append("Elevated fraud rates in specific segments may indicate targeted attack patterns or increased user vulnerability in those cohorts.")
 
     lines.append("")
+    chart_note = _get_chart_rationale(plan.get("recommended_chart", "donut"))
+    if chart_note:
+        lines.append(f"**Visualization:** {chart_note}")
+        lines.append("")
+
     lines.append("**Confidence:** High — Direct dataset aggregation.")
     return "\n".join(lines)
 
@@ -296,6 +366,99 @@ def format_risk_response(plan: dict, result: dict) -> str:
 
     lines.append("")
     lines.append("**Confidence:** High — Direct dataset aggregation.")
+    return "\n".join(lines)
+
+
+def format_distribution_response(plan: dict, result: dict) -> str:
+    """Format histogram distribution result in mandatory structured format."""
+    column = result.get("column", "amount")
+    rows = result.get("chart_data", [])
+    
+    col_label = _col_label(column)
+    
+    lines = []
+    lines.append("**Answer:**")
+    lines.append(f"Frequency distribution for {col_label} across the dataset:\n")
+    if rows:
+        top_bin = max(rows, key=lambda x: x["value"])
+        lines.append(f"The most frequent range is **{top_bin['name']}** with {top_bin['value']:,} transactions.")
+    
+    lines.append("")
+    lines.append("**Data Applied:**")
+    lines.append(f"- Distribution dimension: {col_label}")
+    lines.append(f"- Sample size: {sum(r['value'] for r in rows):,} transactions")
+    lines.append("")
+    lines.append("**Calculation Logic:**")
+    lines.append(f"- Numeric binning applied to {column} into {len(rows)} equal-width intervals.")
+    lines.append("- Frequency count per interval computed using NumPy histogram logic.")
+    lines.append("")
+    lines.append("**Insight:**")
+    if rows:
+        lines.append(f"Visualizing the spread of {col_label} helps identify the 'typical' transaction size and outlier volume. The concentration in {top_bin['name']} suggests a standardized usage pattern.")
+    
+    lines.append("")
+    lines.append("**Confidence:** High — Calculated directly from numeric distribution.")
+    return "\n".join(lines)
+
+
+def format_correlation_response(plan: dict, result: dict) -> str:
+    """Format scatter plot correlation result in mandatory structured format."""
+    col1 = result.get("col1", "X")
+    col2 = result.get("col2", "Y")
+    count = len(result.get("chart_data", []))
+    
+    lines = []
+    lines.append("**Answer:**")
+    lines.append(f"Relationship analysis between **{_col_label(col1)}** and **{_col_label(col2)}**:\n")
+    lines.append(f"Plotted {count:,} representative data points to visualize potential correlations.")
+    
+    lines.append("")
+    lines.append("**Data Applied:**")
+    lines.append(f"- Primary variable: {_col_label(col1)}")
+    lines.append(f"- Secondary variable: {_col_label(col2)}")
+    lines.append(f"- Sample size: {count:,} random samples (for performance and clarity)")
+    lines.append("")
+    lines.append("**Calculation Logic:**")
+    lines.append(f"- Scatter mapping of ({col1}, {col2}) tuples.")
+    lines.append("- Data normalized to floating point for precise coordinate rendering.")
+    lines.append("")
+    lines.append("**Insight:**")
+    lines.append(f"The scatter distribution reveals whether {col1} significantly influences {col2}. Lack of a clear linear pattern would suggest these variables are independent in the current dataset context.")
+    
+    lines.append("")
+    lines.append("**Confidence:** Medium — Based on a representative sample of {count:,} records.")
+    return "\n".join(lines)
+
+
+def format_multi_segmentation_response(plan: dict, result: dict) -> str:
+    """Format stacked/grouped bar results in mandatory structured format."""
+    dim1 = result.get("dim1", "segment")
+    dim2 = result.get("dim2", "sub_segment")
+    rows = result.get("chart_data", [])
+    keys = result.get("keys", [])
+    
+    lines = []
+    lines.append("**Answer:**")
+    lines.append(f"Multi-dimensional analysis of **{dim1.replace('_', ' ').title()}** broken down by **{dim2.replace('_', ' ').title()}**:\n")
+    lines.append(f"Successfully mapped {len(rows)} segments with {len(keys)} sub-categories.")
+    
+    lines.append("")
+    lines.append("**Data Applied:**")
+    lines.append(f"- Primary dimension: {dim1}")
+    lines.append(f"- Breakdown dimension: {dim2}")
+    lines.append(f"- Data points: {len(rows) * len(keys)} cross-sections analyzed")
+    lines.append("")
+    lines.append("**Calculation Logic:**")
+    lines.append(f"- Pivot-table aggregation (groupby {dim1} and {dim2}).")
+    lines.append("- Values converted to consistent floating-point format for stack/group rendering.")
+    lines.append("")
+    lines.append("**Insight:**")
+    if rows:
+        top_seg = rows[0]
+        lines.append(f"The visualization highlights how {dim2} is distributed within the {top_seg['name']} segment. This provides a granular view of behavior patterns that single-dimension charts might miss.")
+    
+    lines.append("")
+    lines.append("**Confidence:** High — Multi-dimensional pivot aggregation.")
     return "\n".join(lines)
 
 
@@ -437,3 +600,72 @@ def _get_interpretation(plan: dict, value: float, benchmark: float | None, pct_d
         else:
             return "Fraud rate is within an acceptable threshold for this segment."
     return ""
+def generate_recommendations(plan: dict, result: dict) -> list[str]:
+    """Smart follow-up recommendation engine."""
+    intent = plan.get("intent")
+    metric = plan.get("metric", "avg")
+    column = plan.get("column", "amount")
+    
+    recs = []
+    
+    if intent == "aggregation":
+        recs = [
+            f"Compare {column} by merchant category",
+            f"Daily trend of {column} today",
+            "Show fraud rate for this segment",
+            "What's the success vs failure ratio?"
+        ]
+    elif intent == "comparison":
+        group = plan.get("group_by", "category")
+        recs = [
+            f"What is the top performing {group} by volume?",
+            f"Fraud breakdown across {group}",
+            "Is there a correlation between amount and time?",
+            f"Compare average amount by {group}"
+        ]
+    elif intent == "temporal":
+        recs = [
+            "What about weekend vs weekday behavior?",
+            "Most fraudulent hour of the day",
+            "Predict risk for next week",
+            "Show cumulative spend trend"
+        ]
+    elif intent == "segmentation":
+        seg = plan.get("segment_col", "category")
+        recs = [
+            f"Compare {seg} side by side",
+            f"Trend of the top 3 {seg}s",
+            "Total success rate by device type",
+            f"Distribution of {seg} by volume"
+        ]
+    elif intent == "risk":
+        recs = [
+            "Simulate impact of reducing transaction limits",
+            "Worst states for transaction failures",
+            "Correlation between fraud and hour",
+            "Top 5 high-risk merchant categories"
+        ]
+    else:
+        recs = [
+            "Show me the overall spending trend",
+            "Which category has the most fraud?",
+            "Average transaction amount by state",
+            "What are the peak transaction hours?"
+        ]
+    
+    return recs[:4]
+
+def _get_chart_rationale(chart_type: str) -> str:
+    """Rationale for autonomous chart selection."""
+    mapping = {
+        "pie": "Selected a Pie chart to effectively show the distribution of multiple categories.",
+        "donut": "A Donut chart highlights the relative breakdown of segments for easier comparison.",
+        "bar": "A Bar chart provides a clear, high-contrast comparison between specific data points.",
+        "line": "A Line chart is used to visualize chronological trends and continuous data flow.",
+        "area": "An Area chart emphasizes the magnitude of changes over time, highlighting cumulative impact.",
+        "histogram": "A Histogram is used to show the frequency distribution and spread of numeric values.",
+        "scatter": "A Scatter plot reveals the potential correlation or cluster patterns between variables.",
+        "stacked_bar": "A Stacked Bar chart shows how sub-categories contribute to the whole across dimensions.",
+        "grouped_bar": "A Grouped Bar chart allows for a precise side-by-side comparison of multiple metrics.",
+    }
+    return mapping.get(chart_type, "")

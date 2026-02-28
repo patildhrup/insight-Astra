@@ -9,6 +9,8 @@ import {
     Bell,
     Search,
     FileText,
+    BrainCircuit,
+    Activity,
     User as UserIcon,
     Zap,
     ChevronLeft,
@@ -33,6 +35,9 @@ import { Badge } from "@/components/ui/badge";
 
 const sidebarLinks = [
     { name: "Overview", icon: LayoutDashboard, path: "/dashboard" },
+    { name: "Executive Simulator", icon: Activity, path: "/dashboard/executive-simulator" },
+    { name: "Benchmark Performance", icon: Activity, path: "/dashboard/benchmark" },
+    { name: "AI Business Advisor", icon: BrainCircuit, path: "/dashboard/business-advisor" },
     { name: "Analytics", icon: BarChart3, path: "/dashboard/analytics" },
     { name: "AI Reports", icon: FileText, path: "/dashboard/auto-report" },
     { name: "Settings", icon: Settings, path: "/dashboard/settings" },
@@ -132,9 +137,9 @@ export default function DashboardLayout({ children }) {
                             key={link.name}
                             to={link.path}
                             onClick={() => setIsMobileSidebarOpen(false)}
-                            className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${isActive
+                            className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${isActive
                                 ? "bg-primary text-white shadow-lg shadow-primary/20"
-                                : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                                : "text-gray-500 hover:bg-red-100 hover:text-red-700 hover:shadow-lg hover:shadow-red-600/30"
                                 }`}
                         >
                             <link.icon className="w-5 h-5 flex-shrink-0" />

@@ -54,7 +54,34 @@ class ChatResponse(BaseModel):
     comparison_insight: Optional[str] = None
     forecast_insight: Optional[dict] = None
     benchmark_insight: Optional[str] = None
+    suggestions: Optional[list[str]] = None
+    multi_charts: Optional[list[dict]] = None
 
+
+class BusinessAdvisorRequest(BaseModel):
+    query: str
+
+class BusinessAdvisorResponse(BaseModel):
+    analysis_summary: str
+    strategies: list[dict]
+    chart_projection: dict
+
+@router.get("/benchmark")
+async def get_benchmark():
+    try:
+        data = analytics_engine.get_benchmark_comparison()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/business-advisor")
+async def business_advisor(request: BusinessAdvisorRequest):
+    try:
+        metrics = analytics_engine.get_business_metrics_summary()
+        response_json = await explainability.generate_business_strategy(request.query, metrics)
+        return response_json
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/history/{session_id}")
 async def get_history(session_id: str):
@@ -199,75 +226,100 @@ async def chat(request: ChatRequest):
         )
 
     # 4. Route to the correct analytics function
-    raw_result = {}
-    filters = plan.get("filters", {}) or {}
-    column = plan.get("column", "amount")
-    metric = plan.get("metric", "avg")
-    group_by = plan.get("group_by")
-    segment_col = plan.get("segment_col")
+    # 4. Route to the correct analytics function
+    # Refactored to support multiple charts if requested
+    requested_charts = plan.get("recommended_charts") or [plan.get("recommended_chart") or "bar"]
+    multi_charts = []
+    primary_result = None
+
+    async def get_result_for_type(ctype):
+        filters = plan.get("filters", {}) or {}
+        column = plan.get("column", "amount")
+        metric = plan.get("metric", "avg")
+        group_by = plan.get("group_by")
+        segment_col = plan.get("segment_col")
+        
+        raw_res = {}
+        # Map chart type back to intent if we are doing multi-chart
+        # This is a bit of a heuristic to allow "show bar and line"
+        local_intent = intent
+        if ctype == "histogram": local_intent = "distribution"
+        elif ctype == "scatter": local_intent = "correlation"
+        elif ctype == "area" or ctype == "line": local_intent = "temporal"
+        elif ctype == "pie" or ctype == "donut": local_intent = "segmentation"
+        elif ctype == "stacked_bar" or ctype == "grouped_bar": local_intent = "multi_segmentation"
+
+        if local_intent == "aggregation":
+            raw_res = analytics_engine.query_aggregation(metric, column, filters)
+        elif local_intent == "comparison":
+            raw_res = analytics_engine.query_comparison(group_by or "device_type", metric, column, filters)
+        elif local_intent == "temporal":
+            raw_res = analytics_engine.query_temporal(filters)
+        elif local_intent == "segmentation":
+            raw_res = analytics_engine.query_segmentation(segment_col or group_by or "merchant_category", metric, column)
+        elif local_intent == "risk":
+            raw_res = analytics_engine.query_risk(segment_col or group_by)
+        elif local_intent == "distribution":
+            raw_res = analytics_engine.query_histogram(column)
+        elif local_intent == "correlation":
+            raw_res = analytics_engine.query_correlation(column, plan.get("secondary_segment") or "hour_of_day")
+        elif local_intent == "multi_segmentation":
+            raw_res = analytics_engine.query_multi_segmentation(plan.get("segment_col") or "state", plan.get("secondary_segment") or "device_type", metric, column)
+        elif local_intent == "dashboard":
+            raw_res = analytics_engine.generate_dashboard_data(metric, column, filters)
+        
+        chart_obj = None
+        if raw_res.get("chart_data"):
+            chart_obj = {
+                "type": ctype,
+                "data": raw_res.get("chart_data"),
+                "keys": raw_res.get("keys"),
+                "title": raw_res.get("title") or f"{metric.title()} {column.replace('_', ' ')} breakdown"
+            }
+        return raw_res, chart_obj
 
     try:
+        # Generate all requested charts
+        for i, cvt in enumerate(requested_charts):
+            res_data, chart_data = await get_result_for_type(cvt)
+            if i == 0:
+                primary_result = res_data
+            if chart_data:
+                multi_charts.append(chart_data)
+        
+        # Determine the textual answer using the primary result
         if intent == "aggregation":
-            raw_result = analytics_engine.query_aggregation(metric, column, filters)
-            answer = explainability.format_aggregation_response(plan, raw_result)
-
+            answer = explainability.format_aggregation_response(plan, primary_result)
         elif intent == "comparison":
-            if not group_by:
-                group_by = "device_type"  # sensible default
-            raw_result = analytics_engine.query_comparison(group_by, metric, column, filters)
-            answer = explainability.format_comparison_response(plan, raw_result)
-
+            answer = explainability.format_comparison_response(plan, primary_result)
         elif intent == "temporal":
-            raw_result = analytics_engine.query_temporal(filters)
-            answer = explainability.format_temporal_response(plan, raw_result)
-
+            answer = explainability.format_temporal_response(plan, primary_result)
         elif intent == "segmentation":
-            seg = segment_col or group_by or "merchant_category"
-            raw_result = analytics_engine.query_segmentation(seg, metric, column)
-            answer = explainability.format_segmentation_response(plan, raw_result)
-
+            answer = explainability.format_segmentation_response(plan, primary_result)
         elif intent == "risk":
-            seg = segment_col or group_by
-            raw_result = analytics_engine.query_risk(seg)
-            answer = explainability.format_risk_response(plan, raw_result)
-
+            answer = explainability.format_risk_response(plan, primary_result)
         elif intent == "distribution":
-            raw_result = analytics_engine.query_histogram(column)
-            answer = f"Here is the distribution of {column.replace('_', ' ')}."
-
+            answer = explainability.format_distribution_response(plan, primary_result)
         elif intent == "correlation":
-            sec_col = plan.get("secondary_segment") or "hour_of_day"
-            raw_result = analytics_engine.query_correlation(column, sec_col)
-            answer = f"Analysis of the relationship between {column} and {sec_col}."
-
+            answer = explainability.format_correlation_response(plan, primary_result)
+        elif intent == "multi_segmentation":
+            answer = explainability.format_multi_segmentation_response(plan, primary_result)
         elif intent == "dashboard":
-            raw_result = analytics_engine.generate_dashboard_data(metric, column, filters)
-            if "error" in raw_result:
-                answer = raw_result["error"]
+            if "error" in primary_result:
+                answer = primary_result["error"]
             else:
-                # Generate a narrative overview for the dashboard
-                answer = await explainability.generate_dashboard_narrative(request.message, raw_result)
-                raw_result["insights"] = [answer] # Use the narrative as the primary insight for now
-
+                answer = await explainability.generate_dashboard_narrative(request.message, primary_result)
         elif intent == "rag":
             context, docs = await rag_engine.query(request.message)
-            # We need to generate a final answer from this context.
-            # I'll add a helper in rag_engine or explainability.
-            # For now, let's use a new explainability function.
             answer = await explainability.generate_rag_response(request.message, context)
-            raw_result = {
-                "context": context,
-                "sources": [doc.metadata.get("source") for doc in docs]
-            }
-
+            primary_result = {"context": context, "sources": [doc.metadata.get("source") for doc in docs]}
         else:
-            # Fallback: general summary
-            raw_result = analytics_engine.get_summary_stats()
-            answer = _format_summary(raw_result)
+            primary_result = analytics_engine.get_summary_stats()
+            answer = _format_summary(primary_result)
 
     except Exception as e:
         answer = explainability.format_error_response(str(e))
-        raw_result = {"error": str(e)}
+        primary_result = {"error": str(e)}
 
     # --- PROFESSIONAL FEATURES INTEGRATION ---
     strategic_impact = None
@@ -278,42 +330,40 @@ async def chat(request: ChatRequest):
 
     if intent != "ambiguous":
         # 1. Strategic Impact Engine
-        strategic_impact = _calculate_strategic_impact(raw_result, intent)
-
+        strategic_impact = _calculate_strategic_impact(primary_result, intent)
         # 2. Pattern Memory System
-        pattern_alert = _check_pattern_memory(session_id, intent, plan, raw_result)
-
+        pattern_alert = _check_pattern_memory(session_id, intent, plan, primary_result)
         # 3. Cross-Question Validator
-        comparison_insight = _get_cross_question_comparison(session_id, intent, plan, raw_result)
-
+        comparison_insight = _get_cross_question_comparison(session_id, intent, plan, primary_result)
         # 4. Risk Forecasting (for temporal queries)
         if intent == "temporal" or "time" in request.message.lower():
-             forecast_insight = _get_risk_forecast(raw_result)
-        
+             forecast_insight = _get_risk_forecast(primary_result)
         # 9. Competitive Benchmark
-        benchmark_insight = _get_benchmark_insight(intent, raw_result)
+        benchmark_insight = _get_benchmark_insight(intent, primary_result)
 
     # Persist the current result for future comparisons
-    _store_query_result(session_id, intent, plan, raw_result)
+    _store_query_result(session_id, intent, plan, primary_result)
 
     response = ChatResponse(  # type: ignore
         answer=answer,
         session_id=session_id,
         intent=intent,
-        data=raw_result,
-        chart_data={
-            "type": raw_result.get("chart_type") or plan.get("recommended_chart"),
-            "data": raw_result.get("chart_data"),
-            "keys": raw_result.get("keys"),
-            "title": f"{metric.title()} {column.replace('_', ' ')} by {group_by or segment_col or 'Segment'}"
-        } if raw_result.get("chart_data") else None,
+        data=primary_result,
+        chart_data=multi_charts[0] if multi_charts else None,
+        multi_charts=multi_charts if len(multi_charts) > 1 else None,
         needs_clarification=False,
         strategic_impact=strategic_impact,
         pattern_alert=pattern_alert,
         comparison_insight=comparison_insight,
         forecast_insight=forecast_insight,
-        benchmark_insight=benchmark_insight
+        benchmark_insight=benchmark_insight,
+        suggestions=explainability.generate_recommendations(plan, primary_result)
     )
+    # -----------------------------------------
+
+    # -----------------------------------------
+    # Update context with the latest turn (including rich response data)
+    context_manager.update_context(session_id, plan, request.message, answer, response.dict())
     # -----------------------------------------
 
     # --- REDIS CACHE SET ---
