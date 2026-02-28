@@ -25,6 +25,9 @@ async def test_rag():
 
 def test_redis():
     print("\n--- Testing Redis Connectivity ---")
+    if redis_client is None:
+        print("Redis Connectivity: SKIPPED (redis_client is None, falling back to in-memory)")
+        return
     try:
         redis_client.set("test_key", "test_value")
         val = redis_client.get("test_key")

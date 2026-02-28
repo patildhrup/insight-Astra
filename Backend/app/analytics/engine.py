@@ -188,35 +188,35 @@ def query_aggregation(metric: str, column: str, filters: dict) -> dict:
         }
 
     if metric == "count":
-        result = total_filtered
+        result = int(total_filtered)
     elif column not in filtered.columns:
-        result = total_filtered # Fallback to count if column is missing
+        result = int(total_filtered) # Fallback to count if column is missing
     elif metric == "avg" and pd.api.types.is_numeric_dtype(filtered[column]):
-        result = round(filtered[column].mean(), 2)
+        result = float(round(filtered[column].mean(), 2))
     elif metric == "sum" and pd.api.types.is_numeric_dtype(filtered[column]):
-        result = round(filtered[column].sum(), 2)
+        result = float(round(filtered[column].sum(), 2))
     elif metric == "rate" and pd.api.types.is_numeric_dtype(filtered[column]):
-        result = round(filtered[column].mean() * 100, 2)
+        result = float(round(filtered[column].mean() * 100, 2))
     else:
         # If mean is requested on a string column, return count as a fallback or None
         if metric in ("avg", "mean", "sum") and not pd.api.types.is_numeric_dtype(filtered[column]):
-             result = total_filtered # Return count instead of error
+             result = int(total_filtered) # Return count instead of error
         else:
-            result = total_filtered
+            result = int(total_filtered)
 
     # Benchmark against the full dataset for comparison
     benchmark = None
     if column in df.columns and pd.api.types.is_numeric_dtype(df[column]):
-        benchmark = round(df[column].mean(), 2)
+        benchmark = float(round(df[column].mean(), 2))
     pct_diff = None
     if benchmark and benchmark != 0 and result is not None:
-        pct_diff = round((result - benchmark) / benchmark * 100, 1)
+        pct_diff = float(round((result - benchmark) / benchmark * 100, 1))
 
     return {
         "result": result,
         "benchmark": benchmark,
         "pct_diff_from_overall": pct_diff,
-        "count": total_filtered,
+        "count": int(total_filtered),
         "filters_applied": filters,
         "chart_data": [{"name": "Result", "value": result}, {"name": "Benchmark", "value": benchmark}] if benchmark else None,
         "chart_type": "bar"
@@ -251,7 +251,7 @@ def query_comparison(group_by: str, metric: str, column: str, filters: dict) -> 
     for grp in grouped.index:
         result_rows.append({
             "group": str(grp),
-            "value": grouped[grp],
+            "value": float(grouped[grp]),
             "count": int(counts.get(grp, 0)),
         })
     result_rows.sort(key=lambda x: x["value"], reverse=True)

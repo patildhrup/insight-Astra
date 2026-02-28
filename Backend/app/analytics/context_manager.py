@@ -44,6 +44,8 @@ SESSION_TTL = 86400 # 24 hours
 
 
 def _get_redis(session_id: str) -> dict | None:
+    if redis_client is None:
+        return None
     try:
         data = redis_client.get(f"session:{session_id}")
         if data:
@@ -54,6 +56,8 @@ def _get_redis(session_id: str) -> dict | None:
 
 
 def _set_redis(session_id: str, context: dict):
+    if redis_client is None:
+        return
     try:
         redis_client.setex(
             f"session:{session_id}",
@@ -171,6 +175,8 @@ def get_last_context(session_id: str) -> dict:
 def clear_session(session_id: str):
     """Remove a session from memory and Redis."""
     _sessions.pop(session_id, None)
+    if redis_client is None:
+        return
     try:
         redis_client.delete(f"session:{session_id}")
     except Exception:
