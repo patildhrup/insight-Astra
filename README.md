@@ -13,6 +13,10 @@ The core objective of InsightX is to provide a seamless interactive layer for ma
 *   **Narrative Explainability**: Every insight is accompanied by a logical derivation, backed by empirical statistics and visual trends to ensure transparency.
 *   **Contextual Continuity**: The system maintains a stateful understanding of the conversation, allowing for natural follow-up questions and resolving ambiguity with logic.
 
+
+🌐 **Watch**":https://www.youtube.com/watch?v=dBMEoyP9ID4
+🌐 **visit**:https://astra-y4o7.onrender.com/
+
 ---
 
 ## 🔍 Analytical Focus Areas
