@@ -19,3 +19,4 @@ pandas
 numpy
 requests
 httpx
+gunicorn
