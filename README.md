@@ -2,6 +2,9 @@
 
 **InsightX** is a high-performance, end-to-end intelligence platform engineered to process and analyze a massive synthetic dataset of **250,000+ transactions**. It serves as a unified command center, bridging the gap between raw data and executive decision-making through advanced AI reasoning and real-time computation.
 
+- 🌐 **Watch**":https://www.youtube.com/watch?v=dBMEoyP9ID4
+- 🌐 **visit**:https://astra-y4o7.onrender.com/
+
 ---
 
 ## 🎯 Project Overview
@@ -14,8 +17,6 @@ The core objective of InsightX is to provide a seamless interactive layer for ma
 *   **Contextual Continuity**: The system maintains a stateful understanding of the conversation, allowing for natural follow-up questions and resolving ambiguity with logic.
 
 
-🌐 **Watch**":https://www.youtube.com/watch?v=dBMEoyP9ID4
-🌐 **visit**:https://astra-y4o7.onrender.com/
 
 ---
 
