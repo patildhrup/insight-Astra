@@ -612,10 +612,20 @@ export default function AskMeAnything() {
             // Handle Auto Dashboard Generation
             if (result.intent === "dashboard" && result.data && typeof result.data === 'object') {
                 updateReport(result.data);
+
+                // Add a temporary status message to the chat
+                const statusMsg = {
+                    id: Date.now() + 2,
+                    role: "assistant",
+                    content: "✨ **Generating executive report...** One moment while I prepare the analysis and visualizations.",
+                    intent: "system"
+                };
+                setMessages(prev => [...prev, statusMsg]);
+
                 setTimeout(() => {
                     navigate("/dashboard/auto-report");
                     setIsOpen(false); // Close the chat drawer
-                }, 1500);
+                }, 2500);
             }
         } catch (err) {
             setMessages((prev) => [

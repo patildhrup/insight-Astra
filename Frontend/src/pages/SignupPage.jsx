@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Loader2, Mail, Lock, User, CheckCircle2 } from "lucide-react";
+import { Zap, Loader2, Mail, Lock, User, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 import { toast } from "react-toastify";
@@ -81,10 +81,21 @@ export default function SignupPage() {
         <div className="min-h-screen bg-[#FAFAF9] flex items-center justify-center p-6 text-left">
             <div className="w-full max-w-md space-y-8">
                 <div className="text-center">
-                    <Link to="/" className="inline-flex items-center gap-2 mb-4">
-                        <Shield className="w-10 h-10 text-primary" />
-                        <span className="text-2xl font-bold tracking-tight text-gray-900">
-                            AI <span className="text-primary">Fraud</span> Shield
+                    <Link to="/" className="flex items-center gap-2 group mb-6 justify-center">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-primary/30 rounded-lg blur-md group-hover:bg-primary/50 transition-all duration-300 scale-110 animate-pulse-slow" />
+                            <div className="relative bg-gradient-to-br from-[#DD2C00] to-[#FF6B35] p-1.5 rounded-lg shadow-lg group-hover:scale-110 transition-transform duration-300">
+                                <Zap className="w-6 h-6 text-white" fill="white" />
+                            </div>
+                        </div>
+                        <span className="text-2xl font-black tracking-tight">
+                            <span
+                                className="bg-gradient-to-r from-[#DD2C00] via-[#FF6B35] to-[#DD2C00] bg-clip-text text-transparent"
+                                style={{ backgroundSize: "200% auto", animation: "shine 3s linear infinite" }}
+                            >
+                                Xtreme
+                            </span>
+                            <span className="text-gray-800 font-medium text-lg ml-1">InsightX</span>
                         </span>
                     </Link>
                 </div>
@@ -211,6 +222,17 @@ export default function SignupPage() {
                     </CardContent>
                 </Card>
             </div>
+            <style>{`
+                @keyframes shine {
+                    0% { background-position: 0% center; }
+                    100% { background-position: 200% center; }
+                }
+                @keyframes pulse-slow {
+                    0%, 100% { opacity: 0.3; }
+                    50% { opacity: 0.7; }
+                }
+                .animate-pulse-slow { animation: pulse-slow 2s ease-in-out infinite; }
+            `}</style>
         </div>
     );
 }

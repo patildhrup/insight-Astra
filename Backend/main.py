@@ -18,15 +18,26 @@ from app.analytics import engine as analytics_engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load the UPI dataset once at startup so all requests share the same DataFrame."""
-    print("[INFO] Loading UPI transactions dataset...")
+    print("\n" + "="*50)
+    print("[INIT] InsightX UPI Analytics AI Starting up...")
+    print("[INFO] Loading UPI transactions dataset from CSV...")
     try:
         df = analytics_engine.load_data()
-        print(f"[SUCCESS] Dataset loaded: {len(df):,} transactions, {len(df.columns)} columns")
-        print(f"   Columns: {', '.join(df.columns.tolist())}")
+        print(f"[SUCCESS] Dataset loaded: {len(df):,} transactions")
+        
+        # Pre-calculate summary stats to fill the cache during startup
+        print("[INFO] Pre-calculating dashboard summary stats...")
+        analytics_engine.get_summary_stats()
+        print("[SUCCESS] Summary stats cached.")
+        
+        print(f"[INFO] Backend Engine: Synchronous Threadpool Mode Enabled")
+        print("="*50 + "\n")
     except Exception as e:
-        print(f"[WARNING] Failed to load dataset: {e}")
+        print(f"[ERROR] Critical failure during dataset loading: {e}")
+        import traceback
+        traceback.print_exc()
     yield
-    print("[STOP] Shutting down...")
+    print("[STOP] Shutting down InsightX Backend...")
 
 
 app = FastAPI(

@@ -309,6 +309,7 @@ async def chat(request: ChatRequest):
                 answer = primary_result["error"]
             else:
                 answer = await explainability.generate_dashboard_narrative(request.message, primary_result)
+                primary_result["insights"] = [answer]
         elif intent == "rag":
             context, docs = await rag_engine.query(request.message)
             answer = await explainability.generate_rag_response(request.message, context)
