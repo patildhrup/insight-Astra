@@ -14,13 +14,16 @@ _CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "ml", "upi_transaction
 
 # -- Global DataFrame (loaded once on import) -----------------------------------
 _df: Optional[pd.DataFrame] = None
+_summary_cache: Optional[dict] = None  # Global cache for summary statistics
 
 
 def load_data() -> pd.DataFrame:
     """Load and pre-process the CSV (called once at startup)."""
-    global _df
+    global _df, _summary_cache
     if _df is not None:
         return _df
+    
+    _summary_cache = None  # Reset cache when new data is loaded
 
     df = pd.read_csv(_csv_path())
     # Normalise column names to lowercase with underscores
@@ -112,10 +115,28 @@ def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
             df = _apply_date_filter(df, str(val))
         elif col in df.columns:
             col_series = df[col]
-            if col_series.dtype == object:
+            # Handle numeric comparison strings (e.g., ">50000", "<100")
+            if pd.api.types.is_numeric_dtype(col_series) and isinstance(val, str) and (val.startswith(">") or val.startswith("<")):
+                try:
+                    num_val = float(val[1:])
+                    if val.startswith(">"):
+                        df = df[col_series > num_val]
+                    else:
+                        df = df[col_series < num_val]
+                except (ValueError, TypeError):
+                    # Fallback to exact match if parsing fails
+                    df = df[col_series == val]
+            elif col_series.dtype == object:
                 df = df[col_series.str.lower() == str(val).lower()]
             else:
-                df = df[col_series == val]
+                try:
+                    # Attempt to match numeric types if val is a string
+                    if pd.api.types.is_numeric_dtype(col_series) and isinstance(val, str):
+                        df = df[col_series == float(val)]
+                    else:
+                        df = df[col_series == val]
+                except:
+                    df = df[col_series == val]
     return df
 
 
@@ -123,6 +144,12 @@ def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
 
 def get_summary_stats() -> dict:
     """Overall KPI summary for the dashboard."""
+    global _summary_cache
+    
+    # Return cached version if available (processing 250k rows takes ~15s)
+    if _summary_cache is not None:
+        return _summary_cache
+        
     df = get_df()
     total = len(df)
     avg_amount = df["amount"].mean() if "amount" in df.columns else 0
@@ -156,7 +183,7 @@ def get_summary_stats() -> dict:
                 "status": str(row.get("status", "SUCCESS")).capitalize()
             })
 
-    return {
+    stats = {
         "total_transactions": total,
         "avg_amount": round(avg_amount, 2),
         "fraud_count": fraud_count,
@@ -166,6 +193,10 @@ def get_summary_stats() -> dict:
         "unique_states": states,
         "recent_transactions": recent_transactions
     }
+    
+    # Cache for near-instant subsequent loads
+    _summary_cache = stats
+    return stats
 
 
 def query_aggregation(metric: str, column: str, filters: dict) -> dict:
@@ -268,23 +299,7 @@ def query_comparison(group_by: str, metric: str, column: str, filters: dict) -> 
         "chart_type": "bar"
     }
 
-def query_segmentation(segment_col: str, metric: str, column: str, filters: dict) -> dict:
-    """
-    Segmentation logic, e.g. amount by state.
-    """
-    df = get_df()
-    filtered = _apply_filters(df.copy(), filters)
 
-    if segment_col not in filtered.columns:
-        return {"error": f"Column '{segment_col}' not found."}
-
-    # Use existing grouping logic
-    result = query_comparison(segment_col, metric, column, filters)
-    result["intent"] = "segmentation"
-    # Suggest donut for category breakdowns as it looks more modern
-    result["chart_type"] = "donut" if len(result["chart_data"]) <= 10 else "bar"
-    
-    return result
 
 
 def query_temporal(filters: dict) -> dict:

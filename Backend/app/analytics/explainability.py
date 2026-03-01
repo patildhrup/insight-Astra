@@ -513,28 +513,40 @@ async def generate_dashboard_narrative(question: str, data: dict) -> str:
     breakdowns = data.get("breakdowns", {})
     
     context = f"""
+    - User Question: {question}
     - Timeframe: {data.get('summary', {}).get('timeframe')}
-    - Volume: {data.get('kpis', {}).get('volume', 0)} transactions
-    - Total Amount: {_fmt_inr(data.get('kpis', {}).get('total_amount'))}
-    - Fraud Rate: {_fmt_pct(data.get('kpis', {}).get('fraud_rate'))}
-    - Success Rate: {_fmt_pct(data.get('kpis', {}).get('success_rate'))}
-    - Top Merchant Category: {data.get('breakdowns', {}).get('merchant', [{}])[0].get('label', 'N/A')}
+    - Volume: {kpis.get('volume', 0)} transactions
+    - Total Amount: {_fmt_inr(kpis.get('total_amount'))}
+    - Fraud Rate: {_fmt_pct(kpis.get('fraud_rate'))}
+    - Success Rate: {_fmt_pct(kpis.get('success_rate'))}
+    - Top Merchant Breakdown: {breakdowns.get('merchant', [])}
+    - Regional Breakdown: {breakdowns.get('state', [])}
     """
 
-    system_prompt = """You are a Senior Financial Data Analyst. 
-    Provide a concise (2-3 paragraph) executive summary of the following transaction dashboard data. 
-    Highlight key trends, risk levels, and one actionable insight. 
-    Use a professional and confidence-inspiring tone. Use markdown bolding for key figures."""
+    system_prompt = """You are a Senior Strategic Financial Analyst. 
+    Provide a comprehensive, highly detailed executive report based on the provided transaction data.
+    
+    Structure your response as follows:
+    1. **Executive Synthesis**: A high-level overview of the health of the UPI ecosystem.
+    2. **Loss Analysis & Failure Reasons**: Identify the primary drivers of transaction losses (fraud, failures) based on the figures.
+    3. **Fraud Activity Deep-Dive**: Specific insights into fraud patterns across categories or regions.
+    4. **Actionable Recommendations**: 2-3 strategic steps the board should take.
+
+    CRITICAL: 
+    - If the user asked about specific things (like "loss reasons" or "fraud last month"), YOU MUST focus heavily on those.
+    - Use professional, data-driven language. 
+    - Use markdown bolding for crucial numbers and headers for sections.
+    - DO NOT use emojis."""
     
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"User Prompt: {question}\n\nData Summary: {context}"}
+        {"role": "user", "content": f"Analyze this data for the user's report:\n\n{context}"}
     ]
     
     try:
-        return await call_llm(messages, temperature=0.5, max_tokens=500)
+        return await call_llm(messages, temperature=0.5, max_tokens=1000)
     except Exception:
-        return f"This dashboard summarizes {kpis.get('volume')} transactions with a total value of INR {kpis.get('total_amount'):,.2f}. The fraud rate is currently at {kpis.get('fraud_rate'):.2f}%."
+        return f"This executive report summarizes {kpis.get('volume')} transactions. The current fraud rate is {_fmt_pct(kpis.get('fraud_rate'))} and success rate is {_fmt_pct(kpis.get('success_rate'))}. Market analysis indicates {breakdowns.get('merchant', [{}])[0].get('label', 'N/A')} as the primary transaction driver."
 
 
 def format_clarification_response(clarification_question: str) -> str:

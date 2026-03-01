@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
 
 @router.get("/summary")
-async def get_analytics_summary():
+def get_analytics_summary():
     """
     Returns overall KPI statistics computed from the UPI transactions dataset.
     Used by the Dashboard for live stat cards.
@@ -23,7 +23,7 @@ async def get_analytics_summary():
 
 
 @router.get("/categories")
-async def get_category_breakdown():
+def get_category_breakdown():
     """Returns average amount and fraud rate per merchant category."""
     result = analytics_engine.query_comparison("merchant_category", "avg", "amount", {})
     fraud_result = analytics_engine.query_segmentation("merchant_category", "rate", "fraud_flag")
@@ -35,7 +35,7 @@ async def get_category_breakdown():
 
 
 @router.get("/devices")
-async def get_device_breakdown():
+def get_device_breakdown():
     """Returns comparison of transaction metrics across device types."""
     amount_result = analytics_engine.query_comparison("device_type", "avg", "amount", {})
     fraud_result = analytics_engine.query_comparison("device_type", "rate", "fraud_flag", {})
@@ -47,7 +47,7 @@ async def get_device_breakdown():
 
 
 @router.get("/peak-hours")
-async def get_peak_hours():
+def get_peak_hours():
     """Returns peak hour distribution across all transactions."""
     result = analytics_engine.query_temporal({})
     return {
