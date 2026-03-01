@@ -114,6 +114,23 @@ npm run dev
 ```
 *The app will run at `http://localhost:5173` (Vite)*
 
+## Redis
+
+Redis is used by the backend for caching, session management, and pub/sub.
+Install Redis in Docker:
+
+```bash
+docker run --name redis -p 6379:6379 -d redis
+```
+
+Verify with `redis-cli ping` returning `PONG`.
+
+## Development Workflow
+
+1. Start Redis on docker deskstop.
+2. Follow instructions in `Backend/README.md` to set up and run the backend.
+3. Follow instructions in `Frontend/README.md` to run the frontend.
+
 ---
 
 ## 🛡️ Data & Privacy
@@ -123,3 +140,6 @@ InsightX follows a strict **Data-Only Security Policy**. All AI interactions are
 
 ## 📄 License
 © 2026 Xtreme InsightX. All rights reserved.
+---
+
+🚀Happy coding!
