@@ -15,10 +15,6 @@ from app.api.v1.analytics import router as analytics_router
 # Import analytics engine for pre-loading
 from app.analytics import engine as analytics_engine
 
-@app.on_event("startup")
-async def startup():
-    print("🔥 FastAPI is starting...")
-    print("PORT:", os.getenv("PORT"))
     
 @asynccontextmanager
 async def lifespan(app: FastAPI):
