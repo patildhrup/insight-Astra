@@ -15,23 +15,40 @@ EMBEDDINGS_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 class RAGEngine:
     def __init__(self):
-        # Initialize embeddings
-        self.embeddings = HuggingFaceEmbeddings(model_name=EMBEDDINGS_MODEL)
-        self.vector_store = None
-        self._initialize_vector_store()
+        self._embeddings = None
+        self._vector_store = None
+        self._initialized = False
+
+    @property
+    def embeddings(self):
+        if self._embeddings is None:
+            print("[INIT] Loading HuggingFaceEmbeddings (Lazy)...")
+            self._embeddings = HuggingFaceEmbeddings(model_name=EMBEDDINGS_MODEL)
+        return self._embeddings
 
     def _initialize_vector_store(self):
-        # We try to load the local index, but we NEVER build it on startup
-        # because it blocks the server for 20+ minutes.
+        if self._initialized:
+            return
+        
+        # We try to load the local index safely
         if os.path.exists(INDEX_PATH):
             print("[DATABASE] Loading existing RAG index...")
             try:
-                self.vector_store = FAISS.load_local(INDEX_PATH, self.embeddings, allow_dangerous_deserialization=True)
+                # Use property to trigger lazy load of embeddings
+                self._vector_store = FAISS.load_local(INDEX_PATH, self.embeddings, allow_dangerous_deserialization=True)
                 print("[SUCCESS] RAG index loaded.")
             except Exception as e:
                 print(f"[WARNING] Could not load index: {e}.")
         else:
             print("[INFO] Vector index missing. Using Instant Pandas-Retrieval Engine instead.")
+        
+        self._initialized = True
+
+    @property
+    def vector_store(self):
+        if not self._initialized:
+            self._initialize_vector_store()
+        return self._vector_store
 
     def _fast_pandas_search(self, query: str, k: int = 15) -> str:
         """Instant keyword search on the dataframe without vector embeddings."""
@@ -39,12 +56,18 @@ class RAGEngine:
             return "Dataset missing."
         
         try:
+            # Note: pd.read_csv here might be redundant if analytics_engine has it, 
+            # but we keep it isolated for now.
             df = pd.read_csv(CSV_PATH, nrows=50000) # Fast load first 50k
             # Simple keyword matching across all string columns
             query_terms = query.lower().split()
             
             # Create a combined text column for searching
-            mask = df.astype(str).apply(lambda x: x.str.contains('|'.join(query_terms), case=False, na=False)).any(axis=1)
+            def search_row(row):
+                row_str = " ".join(row.astype(str)).lower()
+                return all(term in row_str for term in query_terms)
+
+            mask = df.apply(search_row, axis=1)
             results = df[mask].head(k)
             
             if results.empty:
@@ -67,16 +90,17 @@ class RAGEngine:
             try:
                 retriever = self.get_retriever()
                 if retriever:
+                    # invoke is sync in many langchain versions, but we await if needed or use run_in_executor
                     docs = retriever.invoke(user_query)
                     context = "\n\n".join([doc.page_content for doc in docs])
                     return context, docs
-            except:
-                pass # Fallback to pandas
+            except Exception as e:
+                print(f"[ERROR] RAG Vector Search failed: {e}. Falling back to Pandas.")
         
         print("[SEARCH] Using Pandas Instant-Retrieval...")
         context = self._fast_pandas_search(user_query)
         # Create a dummy list for compatibility
         return context, []
 
-# Global singleton
+# Global singleton (no longer loads heavy models on import)
 rag_engine = RAGEngine()
