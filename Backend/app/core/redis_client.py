@@ -57,14 +57,21 @@ def get_redis_client():
     redis_url = os.getenv("REDIS_URL")
 
     if not redis_url:
-        raise ValueError("REDIS_URL environment variable is not set")
+        print("[REDIS] Warning: REDIS_URL not set. Caching will be disabled.")
+        return None
 
-    return redis.Redis.from_url(
-        redis_url,
-        decode_responses=True,
-        socket_timeout=5,
-        retry_on_timeout=True
-    )
+    try:
+        client = redis.Redis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_timeout=5,
+            retry_on_timeout=True
+        )
+        # Test connection lazily if possible or just return
+        return client
+    except Exception as e:
+        print(f"[REDIS ERROR] Failed to connect to Redis: {e}")
+        return None
 
-# Create global client
+# Create global client singleton
 redis_client = get_redis_client()
